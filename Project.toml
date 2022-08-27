@@ -1,0 +1,13 @@
+name = "HMD"
+uuid = "34459d71-a401-4179-84fe-d472190a053e"
+authors = ["yoshiatsu163 <atsushi.yoshida.github@gmail.com> and contributors"]
+version = "0.1.0"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
