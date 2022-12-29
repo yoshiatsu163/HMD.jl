@@ -1,5 +1,13 @@
-
 module mol
+
+using ..util
+
+using Graphs, MetaGraphs, PeriodicTable, Unitful, Pipe
+
+precompile(split, (Vector{String},))
+precompile(parse, (Int64, String))
+precompile(parse, (Float64, String))
+precompile(parse, (Float64, String))
 
 function readfile(filename)
     fp = open(filename, "r")
@@ -16,7 +24,7 @@ function readfile(filename)
         elem = elements[Symbol(arr[4])]
         add_vertex!(molecule, Dict(:element => elem.symbol,
                                     :mass => elem.atomic_mass,
-                                    :position => SVector{3, Float64}(parse.(Float64, arr[1:3]))
+                                    :position => parse.(Float64, arr[1:3])
         ))
     end
 

@@ -1,3 +1,7 @@
+abstract type AbstractSystem{D} end
+
+
+
 # data APIs ================================================================================================
 
 """
@@ -112,11 +116,10 @@ A interace for reading subgraph heierchy dictionary: name -> heierchy tree.
 function heierchy end
 
 
-# disc IO APIs ================================================================================================
 """
-heierchy(traj)
+bounding_box(traj)
 
-A interace for combining chemical stuctures.
+A interace for reading subgraph heierchy dictionary: name -> heierchy tree.
 
 ⋅⋅⋅
 # Arguments
@@ -124,30 +127,45 @@ A interace for combining chemical stuctures.
 ⋅⋅⋅
 
 """
-function  end
+function bounding_box(sys <: AbstractSystem) end
 
-"""
-"""
-function  end
-"""
-"""
-function  end
-"""
-"""
-function  end
-"""
-"""
-function  end
-"""
-"""
-function  end
-"""
-"""
-function  end
-"""
-"""
-function  end
-"""
-"""
-function  end
+
+# disc IO APIs ================================================================================================
+#"""
+#heierchy(traj)
+#
+#A interace for combining chemical stuctures.
+#
+#⋅⋅⋅
+## Arguments
+#- 'traj': A trajectory object.
+#⋅⋅⋅
+#
+#"""
+#function  end
+#
+#"""
+#"""
+#function  end
+#"""
+#"""
+#function  end
+#"""
+#"""
+#function  end
+#"""
+#"""
+#function  end
+#"""
+#"""
+#function  end
+#"""
+#"""
+#function  end
+#"""
+#"""
+#function  end
+#"""
+#"""
+#function  end
 

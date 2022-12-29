@@ -1,17 +1,18 @@
-function heiherchy()
-    
+function heierchy(s::System, hname::Symbol)
+    s.heierchy[hname]
 end
 
-function set_heiherchy!()
-    
+function heierchies(s::System)
+    heierchy(s) |> keys
 end
 
-# labelname => atomidに限るかlabelname => labelも可能にするか
-function set_labels!(s::System, name::Symbol, map::AbstractDict; reverse = false)
-    map_name = (name, :aid)
-    mm = labels(s)
-    set_map!(mm, map_name, map)
-    if reverse
-        add_reverse!(mm, ())
-    end
+function labels(s::System, hname::Symbol)
+    h = heierchy(s, hname)
+    HeierchyLabels.labels(h)
 end
+
+function add_label!(s::System, hname::Symbol; label::Label, atom_ids::::Vector{<:Integer}, super::Label, sub::Label)
+    h = heierchy(s, hname)
+    HeierchyLabels.add_label!(h, label, atom_ids; super = super, sub = sub)
+end
+

@@ -1,60 +1,89 @@
 module HeierchyLabels
 
-using MetaGraphs
+using Graphs, MetaGraphs, MultiBiMaps
+import Base: getindex
 
-export Label, LabelHeierchy, Tree
-export super, sub
+export Label, LabelHeierchy
+export id, type, l2a, add_relation!, super, sub, issuper, issub, getindex
+export Label2atom
+
+using .DataTypes: Id
 
 struct Label
-    name::String
+    id::Id{Label}
+    type::String
 end
 
-const Tree{T} = MetaDiGraph{T} where T <: Integer
-
-mutable struct LabelHeierchy{T <: Integer, S <: AbstractString}
-    labels::Tree{T}
-    graphs::Dict{Label, MetaGraph}
-    name::S
+function id(label::Label)
+    label.id
 end
 
-function root(t::Tree)
-    !is_connected && error("Tree is disconnetted. ")
-    !is_cyclic && error("Tree has cyclic parts. ")
-
-    climb(g, v) = begin
-        p = inneighbors(t, v)
-        if length(p) == 1
-            climb(g, v)
-        elseif length(p) == 0
-            return v
-        else
-            length(p) >= 2 && error("Node $v has multiple parents. ")
-        end
-    end
-
-    climb(t.tree, 1)
+function type(label::Label)
+    label.type
 end
 
-function find_node(t::Tree, l::Label)
-    filter(v->props(v)[:label]==l, vertices(t))
+include("label2atom.jl")
+include("heierchy.jl")
+
+Base.@kwdef mutable struct LabelHeierchy
+    heierchy::Heierchy = Heierchy()
+    l2a::Label2atom = Label2atom()
 end
 
-function super(t::Tree, l::Label)
-    list = map(v->inneighbors(t, v), find_node(t, l))
-    unique(list)
+function LabelHeierchy()
+    lh = LabelHeierchy()
+
+    entire_system = Label(1, "all")
+    add_vertex!(lh.heierchy)
+    set_prop!(lh.heierchy, 1, entire_system)
 end
 
-function sub(t::Tree, l::Label)
-    list = map(v->outneighbors(t, v), find_node(t, l))
-    unique(list)
+function heierchy(lh::LabelHeierchy)
+    lh.heierchy
 end
 
-function rename!(t::Tree, l::Label, new::AbstractString)
-    v = find_node(t, l)
-    prop = deepcopy(props(v))
-    prop[:label].name = new
-    set_props!(t, v, prop)
+function l2a(lh::LabelHeierchy)
+    lh.l2a
 end
 
-#module
+function add_label!(lh::LabelHeierchy, label::Label, atom_ids::Vector{<:Integer}; super::Label, sub::Label)
+    _add_label!(heierchy(lh), label; super = super, sub = sub)
+    _add_label!(l2a(lh), label, atom_ids)
 end
+
+function add_relation!(lh::LabelHeierchy, label::Label; super::Label, sub::Label)
+    h = heierchy(lh)
+    _add_relation!(h, label; super = super, sub = sub)
+end
+
+function super(lh::LabelHeierchy, label::Label)
+    h = heierchy(lh)
+    _super(h, label), l2a(lh)[label]
+end
+
+function sub(lh::LabelHeierchy, label::Label)
+    h = heierchy(lh)
+    _sub(h, label), l2a(lh)[label]
+end
+
+function issuper(lh::LabelHeierchy, lhs::Label, rhs::Label)
+    rhs ∈ super(lh, lhs)[1]
+end
+
+function issub(lh::LabelHeierchy, lhs::Label, rhs::Label)
+    rhs ∈ sub(lh, lhs)[1]
+end
+
+function labels(lh::LabelHeierchy)
+    l2a(lh) |> _labels
+end
+
+function getindex(lh::LabelHeierchy, label::Label)
+    l2a(lh)[label]
+end
+
+function getindex(lh::LabelHeierchy, atomid::Integer)
+    l2a(lh)[atomid]
+end
+
+end #module
