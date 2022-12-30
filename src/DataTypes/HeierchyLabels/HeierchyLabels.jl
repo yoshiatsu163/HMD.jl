@@ -1,13 +1,13 @@
 module HeierchyLabels
 
-using Graphs, MetaGraphs, MultiBiMaps
+using Graphs, MetaGraphs
 import Base: getindex
 
 export Label, LabelHeierchy
 export id, type, l2a, add_relation!, super, sub, issuper, issub, getindex
 export Label2atom
 
-using .DataTypes: Id
+using ..DataTypes: Id
 
 struct Label
     id::Id{Label}
@@ -86,4 +86,5 @@ function getindex(lh::LabelHeierchy, atomid::Integer)
     l2a(lh)[atomid]
 end
 
+include("test.jl")
 end #module

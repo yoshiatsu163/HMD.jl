@@ -137,7 +137,7 @@ function set_position!(s::System, id::Integer, x::AbstractVector)
 end
 precompile(set_position!, (System, Int64, Vector{Float64}))
 
-function add_atom!(s::System; connect::Vector{<:Integer} pos, type, elem)
+function add_atom!(s::System; connect::Vector{<:Integer}, pos, type, elem)
     @assert length(positions(s)) == nv(topology(s))
     id = length(positions(s)) + 1
 

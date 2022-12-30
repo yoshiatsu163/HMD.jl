@@ -72,6 +72,6 @@ function _issuper(h::Heierchy, lhs::Label, rhs::Label)
     rhs ∈ _super(h, lhs)
 end
 
-function _issub(h::LabelHeierchy, lhs::Label, rhs::Label)
+function _issub(h::Heierchy, lhs::Label, rhs::Label)
     rhs ∈ _sub(h, lhs)
 end

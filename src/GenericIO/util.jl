@@ -1,8 +1,3 @@
-module util
-
-using PeriodicTable, Unitful, getlines
-
-export assume_element, getlines, meassert
 
 asserting() = false # when set to true, this will enable all `@myassert`s
 macro myassert(test)

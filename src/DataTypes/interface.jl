@@ -11,7 +11,7 @@ function labels(s::System, hname::Symbol)
     HeierchyLabels.labels(h)
 end
 
-function add_label!(s::System, hname::Symbol; label::Label, atom_ids::::Vector{<:Integer}, super::Label, sub::Label)
+function add_label!(s::System, hname::Symbol; label::Label, atom_ids::Vector{<:Integer}, super::Label, sub::Label)
     h = heierchy(s, hname)
     HeierchyLabels.add_label!(h, label, atom_ids; super = super, sub = sub)
 end

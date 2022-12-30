@@ -1,7 +1,5 @@
 module mol
 
-using ..util
-
 using Graphs, MetaGraphs, PeriodicTable, Unitful, Pipe
 
 precompile(split, (Vector{String},))
