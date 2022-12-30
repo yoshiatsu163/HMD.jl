@@ -8,7 +8,6 @@ function test()
     @test add_vertex!(_heierchy(h))
     set_prop!(_heierchy(h), 1, :label, l1)
 
-    @testset ""
     @test _get_nodeid(h, l1; allow_NA = false) == 1
     @test _get_nodeid(h, l1; allow_NA = true)  == 1
     @test _get_nodeid(h, Label(2, "l1"); allow_NA = true) |> ismepty
