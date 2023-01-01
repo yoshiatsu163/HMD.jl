@@ -6,6 +6,7 @@ import Base: getindex
 export Label, LabelHeierchy
 export id, type, l2a, add_relation!, super, sub, issuper, issub, getindex
 export Label2atom
+export nolabel
 
 using ..DataTypes: Id
 

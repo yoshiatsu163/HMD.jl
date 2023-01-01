@@ -2,5 +2,5 @@ using HMD
 using Test
 
 @testset "HMD.jl" begin
-    # Write your tests here.
+    HMD.DataTypes.HeierchyLabels.test()
 end
