@@ -11,6 +11,16 @@ function labels(s::System, hname::Symbol)
     HeierchyLabels.labels(h)
 end
 
+function add!(s::System, addend::System)
+    
+end
+
+function ⊕(lhs::System, rhs::System)
+    # 重複あればエラー
+    # 同一名のHeierchyあればadd
+    # 異なるHeierchyあれば追加
+end
+
 function add_label!(s::System, hname::Symbol; label::Label, atom_ids::Vector{<:Integer}, super::Label, sub::Label)
     h = heierchy(s, hname)
     HeierchyLabels.add_label!(h, label, atom_ids; super = super, sub = sub)

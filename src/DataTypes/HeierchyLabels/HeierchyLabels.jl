@@ -6,7 +6,7 @@ import Base: getindex
 export Label, LabelHeierchy
 export id, type, l2a, add_relation!, super, sub, issuper, issub, getindex
 export Label2atom
-export nolabel
+export NoLabel
 
 using ..DataTypes: Id
 
@@ -14,6 +14,8 @@ struct Label
     id::Id{Label}
     type::String
 end
+
+const NoLabel = Label(typemin(Int64), "NoLabel")
 
 function id(label::Label)
     label.id
@@ -34,9 +36,10 @@ end
 function LabelHeierchy()
     lh = LabelHeierchy()
 
-    entire_system = Label(1, "all")
-    add_vertex!(lh.heierchy)
-    set_prop!(lh.heierchy, 1, entire_system)
+    #古いので更新
+    #entire_system = Label(1, "all")
+    #add_vertex!(lh.heierchy)
+    #set_prop!(lh.heierchy, 1, entire_system)
 end
 
 function heierchy(lh::LabelHeierchy)
@@ -52,9 +55,9 @@ function add_label!(lh::LabelHeierchy, label::Label, atom_ids::Vector{<:Integer}
     _add_label!(l2a(lh), label, atom_ids)
 end
 
-function add_relation!(lh::LabelHeierchy, label::Label; super::Label, sub::Label)
+function add_relation!(lh::LabelHeierchy; super::Label, sub::Label)
     h = heierchy(lh)
-    _add_relation!(h, label; super = super, sub = sub)
+    _add_relation!(h, super = super, sub = sub)
 end
 
 function super(lh::LabelHeierchy, label::Label)

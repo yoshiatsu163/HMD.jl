@@ -1,35 +1,55 @@
 mutable struct Label2atom{T1, T2}
-    forward::Dict{T1, T2}
-    reverse::Vector{Vector{Label}}
+    toatom::Dict{T1, T2}
+    tolabel::Vector{Vector{Label}}
 end
 
 function Label2atom()
-    Label2atom{Label, Int64}(Dict{Label, Int64}(), Label[][])
+    Label2atom{Label, Vector{Int64}}(
+        Dict{Label, Vector{Int64}}(), [Label[]])
 end
 
-function forward(l2a::Label2atom)
-    l2a.forward
+function Label2atom(natom::Integer)
+    if natom <= 0
+        error("Number of atom must be positive. ")
+    end
+
+    l2a = Label2atom()
+    append!(tolabel(l2a), [Label[] for _ in 1:natom])
+
+    l2a
 end
 
-function revesre(l2a::Label2atom)
-    l2a.reverse
+function toatom(l2a::Label2atom)
+    l2a.toatom
+end
+
+function tolabel(l2a::Label2atom)
+    l2a.tolabel
 end
 
 function _labels(l2a::Label2atom)
-    forward(l2a) |> keys
+    toatom(l2a) |> keys |> collect
 end
 
 function getindex(l2a::Label2atom, label::Label)
-    forward(l2a)[label]
+    toatom(l2a)[label]
 end
 
 function getindex(l2a::Label2atom, atomid::Integer)
-    reverse(l2a)[atomid]
+    tolabel(l2a)[atomid]
 end
 
+# add labelのみだとlabelのついてない原子を扱えない
+# 1. Heierchyにそもそも入れない
+# 2. add_atom等を用意してatomとのコヒーレンシを保つ
+#   sync!()でもいいがテストユニットが大きくなる
 function _add_label!(l2a::Label2atom, label::Label, ids::Vector{<:Integer})
-    push!(forward(l2a), label => ids)
+    if label ∈ toatom(l2a) |> keys
+        error("label already exists in Label => atom mapping. ")
+    end
+
+    push!(toatom(l2a), label => ids)
     for id in ids
-        push!(l2a[id], label)
+        push!(tolabel(l2a)[id], label)
     end
 end

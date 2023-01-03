@@ -23,7 +23,7 @@ function _get_label(h::Heierchy, id::Integer)
     get_prop(_heierchy(h), id, :label)
 end
 
-function _add_label!(h::Heierchy, label::Label; super::Union{Nothing, Label}, sub::Union{Nothing, Label})
+function _add_label!(h::Heierchy, label::Label; super::Label, sub::Label)
     mg = _heierchy(h)
 
     # chack if label already exists
@@ -32,14 +32,14 @@ function _add_label!(h::Heierchy, label::Label; super::Union{Nothing, Label}, su
     end
 
     # check wether super and sub label exists
-    if !isnothing(super) && !_contains(h, super)
+    if super != NoLabel && !_contains(h, super)
         error("super not found")
     end
-    if !isnothing(sub) && !_contains(h, sub)
+    if sub != NoLabel && !_contains(h, sub)
         error("sub not found")
     end
 
-    if !isnothing(super) && !isnothing(sub) && super == sub
+    if super != NoLabel && sub != NoLabel && super == sub
         error("super and sub are the same")
     end
 
@@ -52,16 +52,18 @@ function _add_label!(h::Heierchy, label::Label; super::Union{Nothing, Label}, su
     push!(_label2node(h), label => current_id)
 
     # add_relation
-    if !isnothing(super)
+    if super != NoLabel
         _add_relation!(h; sub = label, super = super)
     end
-    if !isnothing(sub)
+    if sub != NoLabel
         _add_relation!(h; sub = sub, super = label)
     end
 end
 
 function _add_relation!(h::Heierchy; super::Label, sub::Label)
-    if !_contains(h, super)
+    if super == NoLabel || sub == NoLabel 
+        error("super or sub is NoLabel")
+    elseif !_contains(h, super)
         error("super not found ")
     elseif !_contains(h, sub)
         error("sub not found ")

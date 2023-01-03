@@ -3,10 +3,9 @@ using Test
 function test()
 
 @testset "HeierchyLabels" begin
+    l1, l2, l3 = Label(1, "l1"), Label(2, "l2"), Label(3, "l3")
+    noexist    = Label(-1, "not_exist_in_h")
     @testset "heierchy" begin
-        l1, l2, l3 = Label(1, "l1"), Label(2, "l2"), Label(3, "l3")
-        noexist    = Label(-1, "not_exist_in_h")
-
         handmade = begin
             h = Heierchy()
             @assert add_vertex!(_heierchy(h)); set_prop!(_heierchy(h), 1, :label, l1)
@@ -21,16 +20,16 @@ function test()
         end
         addlb = begin
             h = Heierchy()
-            _add_label!(h, l1; super = nothing, sub = nothing)
-            _add_label!(h, l2; super = l1     , sub = nothing)
-            _add_label!(h, l3; super = l2     , sub = nothing)
+            _add_label!(h, l1; super = NoLabel, sub = NoLabel)
+            _add_label!(h, l2; super = l1     , sub = NoLabel)
+            _add_label!(h, l3; super = l2     , sub = NoLabel)
             h
         end
         addrel = begin
             h = Heierchy()
-            _add_label!(h, l1; super = nothing, sub = nothing)
-            _add_label!(h, l2; super = nothing, sub = nothing)
-            _add_label!(h, l3; super = nothing, sub = nothing)
+            _add_label!(h, l1; super = NoLabel, sub = NoLabel)
+            _add_label!(h, l2; super = NoLabel, sub = NoLabel)
+            _add_label!(h, l3; super = NoLabel, sub = NoLabel)
             _add_relation!(h, super = l1, sub = l2)
             _add_relation!(h, super = l2, sub = l3)
             h
@@ -47,9 +46,9 @@ function test()
         @test _issuper(handmade, l1, l2) && _issuper(handmade, l2, l3)
         @test _issub(handmade, l2, l1)   && _issub(handmade, l3, l2)
         
-        @test_throws ErrorException _add_label!(handmade, l1, super = nothing, sub = nothing)
-        @test_throws ErrorException _add_label!(handmade, Label(43256, "some"), super = noexist, sub = nothing)
-        @test_throws ErrorException _add_label!(handmade, Label(43256, "some"), super = nothing, sub = noexist)
+        @test_throws ErrorException _add_label!(handmade, l1, super = NoLabel, sub = NoLabel)
+        @test_throws ErrorException _add_label!(handmade, Label(43256, "some"), super = noexist, sub = NoLabel)
+        @test_throws ErrorException _add_label!(handmade, Label(43256, "some"), super = NoLabel, sub = noexist)
         @test_throws ErrorException _add_label!(handmade, Label(43256, "some"), super = noexist, sub = noexist)
         @test_throws ErrorException _add_label!(handmade, Label(43256, "some"), super = l1, sub = l1)
         @test _heierchy(handmade)   == _heierchy(addlb)
@@ -65,7 +64,47 @@ function test()
     end
 
     @testset "label2atom" begin
+        handmade = begin
+            l2a = Label2atom(4)
+            push!(l2a.toatom, l1 => [1,2,3,4])
+            for i in [1,2,3,4]
+                l2a.tolabel[i] = [l1]
+            end
+            l2a
+        end
+        addlb = begin
+            l2a = Label2atom(4)
+            _add_label!(l2a, l1, [1,2,3,4])
+            l2a
+        end
 
+        @test tolabel(handmade) == tolabel(addlb)
+        @test toatom(handmade)  == toatom(addlb)
+        @test _labels(addlb) == [l1]
+        @test addlb[l1] == [1,2,3,4]
+        @test addlb[1] == addlb[2] == addlb[3] == addlb[4] == [l1]
+
+        @test_throws ErrorException Label2atom(-1)
+        @test_throws ErrorException _add_label!(addlb, l1, [1,2,3,4])
+        @test_throws KeyError addlb[l2]
+        @test_throws BoundsError addlb[6]
+        @test tolabel(handmade) == tolabel(addlb)
+        @test toatom(handmade)  == toatom(addlb)
+    end
+
+    @testset "HeierchyLabels" begin
+        lh = begin
+            addrel = LabelHeierchy()
+            # !!!internal!!!
+            append!(l2a(addrel) |> toatom, [Label[] for _ in 1:4])
+            # 先にtopologyをセットする必要がある
+            #add_label!(addrel, l1, [1,2,3,4]; super = NoLabel, sub = NoLabel)
+            #add_label!(addrel, l2, [1,2,3]  ; super = NoLabel, sub = NoLabel)
+            #add_label!(addrel, l3, [1,2]    ; super = NoLabel, sub = NoLabel)
+            #add_relation!(addrel; super = l1, sub = l2)
+            #add_relation!(addrel; super = l2, sub = l3)
+            addrel
+        end
     end
 end
 
