@@ -4,7 +4,7 @@ using Graphs, MetaGraphs
 import Base: getindex
 
 export Label, LabelHeierchy
-export id, type, l2a, add_relation!, super, sub, issuper, issub, getindex
+export id, type, l2a, add_atom!, add_label!, add_relation!, super, sub, issuper, issub, getindex
 export Label2atom
 export NoLabel
 
@@ -33,21 +33,16 @@ Base.@kwdef mutable struct LabelHeierchy
     l2a::Label2atom = Label2atom()
 end
 
-function LabelHeierchy()
-    lh = LabelHeierchy()
-
-    #古いので更新
-    #entire_system = Label(1, "all")
-    #add_vertex!(lh.heierchy)
-    #set_prop!(lh.heierchy, 1, entire_system)
-end
-
 function heierchy(lh::LabelHeierchy)
     lh.heierchy
 end
 
 function l2a(lh::LabelHeierchy)
     lh.l2a
+end
+
+function add_atom!(lh::LabelHeierchy, n::Integer)
+    _add_atom!(l2a(lh), n)
 end
 
 function add_label!(lh::LabelHeierchy, label::Label, atom_ids::Vector{<:Integer}; super::Label, sub::Label)

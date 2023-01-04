@@ -65,7 +65,8 @@ function test()
 
     @testset "label2atom" begin
         handmade = begin
-            l2a = Label2atom(4)
+            l2a = Label2atom()
+            append!(tolabel(l2a), [Label[] for _ in 1:4])
             push!(l2a.toatom, l1 => [1,2,3,4])
             for i in [1,2,3,4]
                 l2a.tolabel[i] = [l1]
@@ -73,7 +74,8 @@ function test()
             l2a
         end
         addlb = begin
-            l2a = Label2atom(4)
+            l2a = Label2atom()
+            _add_atom!(l2a, 4)
             _add_label!(l2a, l1, [1,2,3,4])
             l2a
         end
@@ -84,7 +86,6 @@ function test()
         @test addlb[l1] == [1,2,3,4]
         @test addlb[1] == addlb[2] == addlb[3] == addlb[4] == [l1]
 
-        @test_throws ErrorException Label2atom(-1)
         @test_throws ErrorException _add_label!(addlb, l1, [1,2,3,4])
         @test_throws KeyError addlb[l2]
         @test_throws BoundsError addlb[6]
@@ -92,20 +93,36 @@ function test()
         @test toatom(handmade)  == toatom(addlb)
     end
 
-    @testset "HeierchyLabels" begin
-        lh = begin
-            addrel = LabelHeierchy()
-            # !!!internal!!!
-            append!(l2a(addrel) |> toatom, [Label[] for _ in 1:4])
-            # 先にtopologyをセットする必要がある
-            #add_label!(addrel, l1, [1,2,3,4]; super = NoLabel, sub = NoLabel)
-            #add_label!(addrel, l2, [1,2,3]  ; super = NoLabel, sub = NoLabel)
-            #add_label!(addrel, l3, [1,2]    ; super = NoLabel, sub = NoLabel)
-            #add_relation!(addrel; super = l1, sub = l2)
-            #add_relation!(addrel; super = l2, sub = l3)
-            addrel
-        end
+    addrel = begin
+        addrel = LabelHeierchy()
+        add_atom!(addrel, 4)
+        add_label!(addrel, l1, [1,2,3,4]; super = NoLabel, sub = NoLabel)
+        add_label!(addrel, l2, [1,2,3]  ; super = NoLabel, sub = NoLabel)
+        add_label!(addrel, l3, [1,2]    ; super = NoLabel, sub = NoLabel)
+        add_relation!(addrel; super = l1, sub = l2)
+        add_relation!(addrel; super = l2, sub = l3)
+        addrel
     end
+
+    addlb1 = begin
+        addlb = LabelHeierchy()
+        add_atom!(addlb, 4)
+        add_label!(addlb, l1, [1,2,3,4]; super = NoLabel, sub = NoLabel)
+        add_label!(addlb, l2, [1,2,3]  ; super = l1     , sub = NoLabel)
+        add_label!(addlb, l3, [1,2]    ; super = l2     , sub = NoLabel)
+        addlb
+    end
+    addlb2 = begin
+        addlb = LabelHeierchy()
+        add_atom!(addlb, 4)
+        add_label!(addlb, l1, [1,2,3,4]; super = NoLabel, sub = NoLabel)
+        add_label!(addlb, l3, [1,2]    ; super = NoLabel, sub = NoLabel)
+        add_label!(addlb, l2, [1,2, 3] ; super = l1     , sub = l3)
+        addlb
+    end
+
+    #一致確認
+    #エラー確認 例外タイプ、例外時不変性
 end
 
 end #test

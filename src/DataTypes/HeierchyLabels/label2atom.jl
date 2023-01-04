@@ -5,18 +5,7 @@ end
 
 function Label2atom()
     Label2atom{Label, Vector{Int64}}(
-        Dict{Label, Vector{Int64}}(), [Label[]])
-end
-
-function Label2atom(natom::Integer)
-    if natom <= 0
-        error("Number of atom must be positive. ")
-    end
-
-    l2a = Label2atom()
-    append!(tolabel(l2a), [Label[] for _ in 1:natom])
-
-    l2a
+        Dict{Label, Vector{Int64}}(), Vector{Vector{Label}}())
 end
 
 function toatom(l2a::Label2atom)
@@ -52,4 +41,9 @@ function _add_label!(l2a::Label2atom, label::Label, ids::Vector{<:Integer})
     for id in ids
         push!(tolabel(l2a)[id], label)
     end
+end
+
+function _add_atom!(l2a::Label2atom, n::Integer)
+    append!(tolabel(l2a), [Label[] for _ in 1:n])
+    tolabel(l2a) |> length
 end
