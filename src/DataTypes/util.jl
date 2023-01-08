@@ -1,8 +1,10 @@
+#####
+##### Id definition
+#####
+
 struct Id{T} <: Integer
     id::Int64
 end
-
-import Base: >, <, >=, <=, +, -, *, /, ==
 
 function Int(i::Id)
     i.id
@@ -30,4 +32,20 @@ for op in [:(>), :(<), :(>=), :(<=), :(==)]
     @eval function $op(lhs::Int64, rhs::Id{T}) where {T}
         $op(lhs.id, rhs)
     end
+end
+
+#####
+##### Category definition
+#####
+
+struct Category{T} <: AbstractString
+    str::String
+end
+
+function string(category::Category)
+    category.str
+end
+
+function ==(lhs::Category, rhs::Category)
+    string(lhs) == string(rhs)
 end

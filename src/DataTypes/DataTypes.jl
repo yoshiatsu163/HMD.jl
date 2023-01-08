@@ -1,11 +1,19 @@
+# presetとしてpolymer heierchyを追加: polymer >: {monomer >: connection, endcap >: endatom}
+# add_label, add, \oplus, add!を作成 テスト可能
+# selectionなど読み込み機能を追加
+#
+#
+
 module DataTypes
 
 using Graphs
 using LinearAlgebra
 using MetaGraphs
+using PeriodicTable
 using StaticArrays
 
 import Base: push!, getindex
+import Base: >, <, >=, <=, +, -, *, /, ==, string
 
 include("util.jl")
 include("HeierchyLabels/HeierchyLabels.jl")
@@ -16,7 +24,7 @@ import .HeierchyLabels: add_label!, labels
 
 export Position, BoundingBox, System
 export get_position, set_position!
-export Id
+export Id, Category
 
 #####
 ##### Type `Position` definition
@@ -125,10 +133,18 @@ mutable struct System{D, F<:AbstractFloat}
 
     # atom property
     position::Position{D, F}
-    elem::Vector{String}
+    elem::Vector{Category{Element}}
 
     label_heierchy::Dict{Symbol, LabelHeierchy}
     props::Dict{<:AbstractString, PropMap}
+end
+
+function add_atoms!()
+
+end
+
+function add_atom()
+
 end
 
 function select_atom(s::System, label::Label)
