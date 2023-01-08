@@ -1,13 +1,11 @@
-export Id
-
 struct Id{T} <: Integer
     id::Int64
 end
 
 import Base: >, <, >=, <=, +, -, *, /, ==
 
-function Int(id::Id)
-    Id.id
+function Int(i::Id)
+    i.id
 end
 
 for op in [:(+), :(-), :(*), :(/)]
@@ -33,4 +31,3 @@ for op in [:(>), :(<), :(>=), :(<=), :(==)]
         $op(lhs.id, rhs)
     end
 end
-

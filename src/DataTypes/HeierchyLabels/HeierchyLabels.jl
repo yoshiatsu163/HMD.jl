@@ -1,21 +1,25 @@
 module HeierchyLabels
 
-using Graphs, MetaGraphs
-import Base: getindex
-
-export Label, LabelHeierchy
-export id, type, l2a, add_atom!, add_label!, add_relation!, super, sub, issuper, issub, getindex
-export Label2atom
-export NoLabel
+using Graphs
+using MetaGraphs
 
 using ..DataTypes: Id
+
+import Base: getindex
+import Base: ==
+
+export Label, LabelHeierchy, No_Label, Atom_LType
+export id, type
+export l2a, add_atom!, add_label!, add_relation!, super, sub, issuper, issub, getindex
+export Label2atom
 
 struct Label
     id::Id{Label}
     type::String
 end
 
-const NoLabel = Label(typemin(Int64), "NoLabel")
+const No_Label = Label(typemin(Int64), "No_Label")
+const Atom_LType = ""
 
 function id(label::Label)
     label.id
@@ -41,8 +45,12 @@ function l2a(lh::LabelHeierchy)
     lh.l2a
 end
 
-function add_atom!(lh::LabelHeierchy, n::Integer)
-    _add_atom!(l2a(lh), n)
+function add_atoms!(lh::LabelHeierchy, n::Integer)
+    _add_atoms!(l2a(lh), n)
+end
+
+function add_atom!(lh::LabelHeierchy)
+    _add_atom!(l2a(lh))
 end
 
 function add_label!(lh::LabelHeierchy, label::Label, atom_ids::Vector{<:Integer}; super::Label, sub::Label)
@@ -83,6 +91,10 @@ end
 
 function getindex(lh::LabelHeierchy, atomid::Integer)
     l2a(lh)[atomid]
+end
+
+function ==(lhs::LabelHeierchy, rhs::LabelHeierchy)
+    heierchy(lhs) == heierchy(rhs) && l2a(lhs) == l2a(rhs)
 end
 
 include("test.jl")

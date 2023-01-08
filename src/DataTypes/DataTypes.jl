@@ -1,32 +1,56 @@
 module DataTypes
 
-export Position, BoundingBox, System
-export get_position, set_position!
-export Id
-
-using StaticArrays, Graphs, MetaGraphs
+using Graphs
+using LinearAlgebra
+using MetaGraphs
+using StaticArrays
 
 import Base: push!, getindex
 
 include("util.jl")
 include("HeierchyLabels/HeierchyLabels.jl")
+
 using  .HeierchyLabels
+
 import .HeierchyLabels: add_label!, labels
 
+export Position, BoundingBox, System
+export get_position, set_position!
+export Id
+
+#####
+##### Type `Position` definition
+#####
+
 const Position{D, F} = Vector{MVector{D, F}} where {D, F <: AbstractFloat}
-function Position(D, F, natom)
-    [MVector{D, F}(zeros(D)) for _ in 1:natom]
+
+function Position(D::Integer, F::Type{<:AbstractFloat}, natom::Integer)
+    return if natom < 0
+        error("natom must be >= 0")
+    elseif natom == 0
+        Vector{MVector{D, F}}(undef, 0)
+    else
+        [MVector{D, F}(zeros(F, D)) for _ in 1:natom]
+    end
 end
 
 function Position{D, F}() where {D, F}
-    Vector{MVector{D, F}}(undef, 0)
+    Position(D, F, 0)
+end
+
+function Position{D, F}(n::Integer) where {D, F}
+    Position(D, F, n)
 end
 
 function Position()
-    Vector{MVector{3, Float64}}(undef, 0)
+    Position(3, Float64, 0)
 end
 
-function Base.push!(p::Position, x::AbstractVector)
+function Position(n::Integer)
+    Position(3, Float64, n)
+end
+
+function push!(p::Position, x::AbstractVector)
     D = length(x)
     F = eltype(x)
     push!(p, MVector{D, F}(x))
@@ -42,43 +66,69 @@ function get_position(p::Position, id::Integer)
 end
 precompile(get_position, (Position, Int64))
 
-# 関数の引数がパラメタ付き型の場合はwhere {}を使うことで関数内でパラメタアクセスが可能
-# e.g. f(a::SVector{D, F}) where {D, F}
+#####
+##### Type `BoundingBox` definition
+#####
+
 struct BoundingBox{D, F <: AbstractFloat}
     origin::SVector{D, F}
     axis::SMatrix{D, D, F}
-    #BoundingBox(origin::SVector{D, F}, axis::SMatrix{D, D, F}) where {D, F} = new{D, F}(origin, axis)
+    BoundingBox(origin::SVector{D, F}, axis::SMatrix{D, D, F}) where {D, F} = new{D, F}(origin, axis)
+end
+
+function BoundingBox(
+    D::Integer, F::Type{<:AbstractFloat}, origin::AbstractVector, axis::AbstractMatrix
+)
+    if D <= 0
+        error("D must be positive integer ")
+    elseif !(D == length(origin)) == size(axis, 1) == size(axis, 2)
+        error("Dimension mismatch ")
+    end
+
+    d = det(axis)
+    if d < 0
+        error("left-handed system not allowed")
+    elseif d == 0
+        error("box is degenerated")
+    end
+
+    return BoundingBox(SVector{D, F}(origin), SMatrix{D, D, F}(axis))
+end
+
+function BoundingBox{D, F}(origin::AbstractVector, axis::AbstractMatrix) where {D, F<:AbstractFloat}
+    BoundingBox(D, F, origin, axis)
 end
 
 function BoundingBox(origin::AbstractVector, axis::AbstractMatrix)
-    #d = det(axis)
-    #if d < 0
-    #    error("left-handed system not allowed")
-    #elseif d == 0
-    #    error("box degenerated")
-    #end
     D = length(origin)
     F = eltype(origin)
-    BoundingBox(SVector{D, F}(origin), SMatrix{D, D, F}(axis))
+    BoundingBox(D, F, origin, axis)
 end
 precompile(BoundingBox, (Vector{Float64}, Matrix{Float64}))
 
-function BoundingBox()
-    BoundingBox(zeros(3), zeros(3, 3))
+#####
+##### Type `PropMap` definition
+#####
+
+mutable struct PropMap
+    #atomtype``
 end
 
-mutable struct System{D}
-    time::Vector{<:Integer}                       
-    topology::Graph{<:Integer}             
-    box::BoundingBox                      
+#####
+##### Type `System` definition
+#####
+
+mutable struct System{D, F<:AbstractFloat}
+    time::F
+    topology::Graph{<:Integer}
+    box::BoundingBox{D, F}
 
     # atom property
-    position::Position{D, <:AbstractFloat}        
-    atype::Vector{<:Any}                
+    position::Position{D, F}
     elem::Vector{String}
 
-    heierchy::Dict{Symbol, LabelHeierchy}
-    props::Dict{<:Integer, <:Any}
+    label_heierchy::Dict{Symbol, LabelHeierchy}
+    props::Dict{<:AbstractString, PropMap}
 end
 
 function select_atom(s::System, label::Label)
