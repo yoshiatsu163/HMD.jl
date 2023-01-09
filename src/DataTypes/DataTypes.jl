@@ -1,4 +1,4 @@
-# presetとしてpolymer heierchyを追加: polymer >: {monomer >: connection, endcap >: endatom}
+# presetとしてpolymer hierarchyを追加: polymer >: {monomer >: connection, endcap >: endatom}
 # add_label, add, \oplus, add!を作成 テスト可能
 # selectionなど読み込み機能を追加
 #
@@ -16,15 +16,15 @@ import Base: push!, getindex
 import Base: >, <, >=, <=, +, -, *, /, ==, string
 
 include("util.jl")
-include("HeierchyLabels/HeierchyLabels.jl")
+include("HierarchyLabels/HierarchyLabels.jl")
 
-using  .HeierchyLabels
-
-import .HeierchyLabels: add_label!, labels
+using  .HierarchyLabels
 
 export Position, BoundingBox, System
 export get_position, set_position!
 export Id, Category
+
+const Entire_System = Label(1, "entire_system")
 
 #####
 ##### Type `Position` definition
@@ -107,20 +107,16 @@ function BoundingBox{D, F}(origin::AbstractVector, axis::AbstractMatrix) where {
     BoundingBox(D, F, origin, axis)
 end
 
+function BoundingBox{D, F}() where {D, F<:AbstractFloat}
+    BoundingBox{D, F}(zeros(F, 3), Matrix{F}(I, D, D))
+end
+
 function BoundingBox(origin::AbstractVector, axis::AbstractMatrix)
     D = length(origin)
     F = eltype(origin)
     BoundingBox(D, F, origin, axis)
 end
 precompile(BoundingBox, (Vector{Float64}, Matrix{Float64}))
-
-#####
-##### Type `PropMap` definition
-#####
-
-mutable struct PropMap
-    #atomtype``
-end
 
 #####
 ##### Type `System` definition
@@ -133,147 +129,206 @@ mutable struct System{D, F<:AbstractFloat}
 
     # atom property
     position::Position{D, F}
-    elem::Vector{Category{Element}}
+    element::Vector{Category{Element}}
 
-    label_heierchy::Dict{Symbol, LabelHeierchy}
-    props::Dict{<:AbstractString, PropMap}
+    hierarchy::Dict{<:AbstractString, LabelHierarchy}
+    props::Dict{<:AbstractString, Dict{Label, Any}}
 end
 
-function add_atoms!()
-
-end
-
-function add_atom()
-
-end
-
-function select_atom(s::System, label::Label)
-    #return {atom id | atom \in Label}
-end
-
-function props(s::System, label::Label)
-    # return Dict like label => property
-end
-
-function atomtype(s::System, id::Integer)
-    s.atype[id]
-end
-
-function set_atomtype!(s::System, id::Integer, type)
-    d.atype[id] = type
-end
-
-function add_atomtype!(s::System, type)
-    push!(s.atype, type)
-end
-
-function elem(s::System, id::Integer)
-    s.elem[id]
-end
-
-function set_elem!(s::System, id::Integer, elem)
-    d.elem[id] = elem
-end
-
-function add_elem!(s::System, elem)
-    push!(s.elem, elem)
-end
-
-function prop(s::System, property::Symbol)
-    s.props[property]
-end
-
-for field in [:time, :topology, :box, :heierchy, :labels]
-    @eval function $field(s::System)
-        s.($field)
-    end
-end
-
-function positions(s::System)
-    s.position
-end
-
-function get_position(s::System, id::Integer)
-    get_position(positions(s), id)
-end
-precompile(get_position, (System, Int64))
-
-function set_position!(s::System, id::Integer, x::AbstractVector)
-    set_position!(positions(s), id, x)
-end
-precompile(set_position!, (System, Int64, Vector{Float64}))
-
-function add_atom!(s::System; connect::Vector{<:Integer}, pos, type, elem)
-    @assert length(positions(s)) == nv(topology(s))
-    id = length(positions(s)) + 1
-
-    push!(positions(s), pos)
-    add_atomtype!(s, type)
-    add_elem!(s, elem)
-    for key in keys(labels(s))
-        push!(labels(s)[key], label)
-    end # add_label!(s, key, value), add_label!(s, :, value)
-
-    t = topology(s)
-    id = nv(t) + 1
-    if !add_vertex!(t)
-        error("atom addition failed at atom id $id")
-    end
-    for v in connect
-        if !add_edge!(t, id, v)
-            error("bond addition between $id and $v failed ")
-        end
-    end
-end
-
-function remove_bond(s::System, v1::Integer, v2::Integer)
-    println("yet implemented")
-end
-
-function set_box!(s, origin::AbstractVector, axis::AbstractMatrix)
-    s.box = BoundingBox(origin, axis)
-end
-
-function System()
-    System{3}()
-end
-precompile(System, ())
-
-function System{D}() where {D}
-    System{D}(
-        Vector{Int64}(undef, 0),
-        Graph(),
-        BoundingBox(),
-        Dict{Symbol, LabelHeierchy}(),
-        Position{D, Float64}(),
-        Vector{Int64}(undef, 0),
-        Vector{String}(undef, 0),
-        Dict{Symbol, Vector{Int64}}(),
-        Dict{Int64, Any}()
+function System{D, F}() where {D, F<:AbstractFloat}
+    System{D, F}(
+        zero(F),
+        SimpleGraph{Int64}(),
+        BoundingBox{D, F}(),
+        Position{D, F}(),
+        Vector{Category{Element}}(undef, 0),
+        Dict{String, LabelHierarchy}(),
+        Dict{String, Dict{Label, Any}}()
     )
 end
 
+function natom(s::System)
+    length(s.position)
+end
+
+function time(s::System)
+    s.time
+end
+
+function set_time!(s::System, time::Abstractfloat)
+    s.time = time
+end
+
+function topology(s::System)
+    s.topology
+end
+
+function box(s::System)
+    s.box
+end
+
+function set_box!(s::System, box::BoundingBox)
+    s.box = box
+end
+
+function all_element(s::System)
+    s.element
+end
+
+function element(s::System, atom_id::Integer)
+    s.element[atom_id]
+end
+
+function set_element!(s::System, atom_id::Integer, ename::AbstractString)
+    s.element[atom_id] = Category{Element}(ename)
+end
+
+function set_element!(s::System, atom_ids::AbstractVector{<:Integer}, enames::AbstractVector{<:AbstractString})
+    if length(atom_ids) != length(enames)
+        throw(DimensionMismatch("Dimension of atom_ids is $(length(atom_ids)) but enames dimension is $(length(enames))"))
+    end
+    s.element[atom_ids] .= Category{Element}.(enames)
+end
+
+function all_positions(s::System)
+    s.position
+end
+
+function position(s::System, atom_id::Integer)
+    s.position[atom_id]
+end
+
+function set_position!(s::System, atom_id::Integer, x::AbstractVector{<:AbstractFloat})
+    s.position[atom_id] .= x
+end
+
+function set_position!(s::System, atom_ids::AbstractVector{<:Integer}, x::AbstractVector{<:AbstractVector{<:AbstractFloat}})
+    if length(atom_ids) != length(x)
+        throw(DimensionMismatch("Dimension of atom_ids is $(length(atom_ids)) but enames dimension is $(length(enames))"))
+    end
+    s.position[atom_ids] .= x
+end
+
+function hierarchy_names(s::System)
+    s.hierarchy |> keys
+end
+
+function hierarchy(s::System, hname::AbstractString)
+    s.hierarchy[hname]
+end
+
+function add_hierarchy!(s::System, hname::AbstractString)
+    if hname in hierarchy_names(s)
+        error("hierarchy $(hname) already exists. ")
+    end
+    push!(s.hierarchy, hname => LabelHierarchy())
+    _add_label!(hierarchy(s, hname), Entire_System, super=No_Label, sub=No_Label)
+end
+
+function labels(s::System, hname::AbstractString)
+    lh = hierarchy(s, hname)
+    return _labels(lh)
+end
+
+function add_label!(s::System, hname::AbstractString, label::Label; super::Label, sub::Label)
+    # super, sub graphが複数のケースあり(特にsub)
+    # atom labelを特別扱いするか？
+end
+
+function prop_names(s::System)
+    s.props |> keys
+end
+
+function props(s::System, pname::AbstractString)
+    s.props[pname]
+end
+
+function prop(s::System, pname::AbstractString, label::Label)
+    prop(s, pname)[label]
+end
+
+function labels_in_prop(s::System, pname::AbstractString)
+    props(s, pname) |> keys
+end
+
+function ∈(label::Label, prp::Dict{Label, Any})
+    label ∈ keys(prp)
+end
+
+function ∋(prp::Dict{Label, Any}, label::Label)
+    label ∈ keys(prp)
+end
+
+function ∉(label::Label, prp::Dict{Label, Any})
+    label ∉ keys(prp)
+end
+
+function add_prop!(s::System, pname::AbstractString)
+    push!(s.props, pname => Dict{Label, Any}())
+end
+
+function add_prop!(s::System, pname::AbstractString, label::Label, p::Any)
+    prp = props(s, pname)
+    if label ∈ prp
+        error("label $(label) already exists. ")
+    end
+    push!(prp, label => p)
+end
+
+function set_prop!(s::System, pname::AbstractString, label::Label, p::Any)
+    if label ∉ props(s, pname)
+        error("label $(label) not found in property $(pname). ")
+    end
+    props(s, pname)[label] = p
+end
+
+function add_atom!(s::System, x::AbstractVector{<:AbstractFloat}, elem::AbstractString)
+    atom_id = natom(s) + 1
+    push!(s.position, x)
+    push!(s.element , Category{Element}(elem))
+    @assert add_vertex!(topology(s))
+    for hname in hierarchy_names(s)
+        lh = hierarchy(s, hname)
+        _add_label!(lh, atom_label(atom_id), super=Entire_System, sub=No_Label)
+    end
+
+    return nothing
+end
+
+function add_bond!(s::System, atom_id1::Integer, atom_id2::Integer)
+    topo = topology(s)
+    @assert add_edge!(topo, atom_id1, atom_id2)
+
+    return nothing
+end
+
+function atom_label(atom_id::Integer)
+    Label(atom_id, "")
+end
+
+
+
 include("interface.jl")
 
-function System(g::MetaGraph)
-    D = props(g, 1)[:position] |> length
-    F = props(g, 1)[:position] |> eltype
-
-    s = System()
-    s.topology = SimpleGraph(g)
-    s.box = BoundingBox()
-    #s.elem = map(v -> props(g, v)[:element], vertices(g))
-
-    for v in vertices(g)
-        #push!(s.position, MVector{D, F}(props(g, v)[:position]))
-        add_atom!(s,
-            connect = all_neighbors(g, v),
-            pos  = props(g, v)[:position],
-            type = 0,
-            elem = props(g, v)[:elem])
-    end
-    s
-end
+#function System(g::MetaGraph)
+#    D = props(g, 1)[:position] |> length
+#    F = props(g, 1)[:position] |> eltype
+#
+#    s = System()
+#    s.topology = SimpleGraph(g)
+#    s.box = BoundingBox()
+#    #s.elem = map(v -> props(g, v)[:element], vertices(g))
+#
+#    for v in vertices(g)
+#        #push!(s.position, MVector{D, F}(props(g, v)[:position]))
+#        add_atom!(s,
+#            connect = all_neighbors(g, v),
+#            pos  = props(g, v)[:position],
+#            type = 0,
+#            elem = props(g, v)[:elem])
+#    end
+#    s
+#end
 
 """
 box読み書き
