@@ -8,6 +8,7 @@ module DataTypes
 
 using Graphs
 using LinearAlgebra
+using Match
 using MetaGraphs
 using PeriodicTable
 using StaticArrays
@@ -155,7 +156,7 @@ function time(s::System)
     s.time
 end
 
-function set_time!(s::System, time::Abstractfloat)
+function set_time!(s::System, time::AbstractFloat)
     s.time = time
 end
 
@@ -230,9 +231,47 @@ function labels(s::System, hname::AbstractString)
     return _labels(lh)
 end
 
-function add_label!(s::System, hname::AbstractString, label::Label; super::Label, sub::Label)
-    # super, sub graphが複数のケースあり(特にsub)
-    # atom labelを特別扱いするか？
+function add_label!(s::System, hname::AbstractString, label::Label)
+    lh = hierarchy(s, hname)
+
+    if label ∈ lh
+        error("Label $(label) already exists. ")
+    end
+
+    _add_label!(lh, label, super=No_Label, sub=No_Label)
+
+    return nothing
+end
+
+function add_relation!(s::System, hname::AbstractString; super::Label, sub::Label)
+    lh = hierarchy(s, hname)
+
+    if super ∉ lh || sub ∉ lh
+        error("Super or sub not found. ")
+    elseif _has_relation(lh, super, sub)
+        error("""There in already relation between super and sub labels. Please use "insert_relation!()" instead. """)
+    end
+
+    return nothing
+end
+
+function insert_relation!(s::System, hname::AbstractString, label::Label; super::Label, sub::Label)
+    lh = hierarchy(s, hname)
+
+    if label ∈ lh
+        error("Label $(label) already exists. ")
+    elseif super ∉ lh || sub ∉ lh
+        error("Super or sub not found. ")
+    elseif !_has_relation(lh, super, sub)
+        error("""There is no relation between super and sub. """)
+    end
+
+    add_label!(s, hname, label)
+    @assert _remove_relation!(lh, super, sub)
+    add_relation!(s, hname; super=super, sub=label)
+    add_relation!(s, hname; super=label, sub=sub)
+
+    return nothing
 end
 
 function prop_names(s::System)

@@ -1,6 +1,7 @@
 module HierarchyLabels
 
 using Graphs
+using Match
 using MetaGraphs
 
 using ..DataTypes: Id, Category
@@ -8,7 +9,7 @@ using ..DataTypes: Id, Category
 import Base: getindex
 import Base: ==
 
-export Label, LabelHierarchyy, No_Label
+export Label, LabelHierarchy
 export id, type, ==
 export _add_label!, _add_relation!, _remove_label!, _remove_relation
 export _label2node, _contains, _has_relation ,_get_nodeid, getindex
@@ -24,6 +25,8 @@ function Label(id::Integer, type::AbstractString)
 end
 
 const No_Label = Label(typemin(Int64), "No_Label")
+
+@enum Result notfound=1
 
 function id(label::Label)
     label.id
@@ -43,15 +46,27 @@ Base.@kwdef mutable struct LabelHierarchy
 end
 
 function _hierarchy(lh::LabelHierarchy)
-    lh.mg
+    return lh.mg
 end
 
 function _label2node(lh::LabelHierarchy)
-    lh.label2node
+    return lh.label2node
 end
 
 function _contains(lh::LabelHierarchy, label::Label)
-    label ∈ _label2node(lh) |> keys
+    return label ∈ _label2node(lh) |> keys
+end
+
+function ∈(label::Label, lh::LabelHierarchy)
+    return _contains(lh, label)
+end
+
+function ∋(lh::LabelHierarchy, label::Label)
+    return _contains(lh, label)
+end
+
+function ∉(label::Label, lh::LabelHierarchy)
+    return !_contains(lh, label)
 end
 
 function _get_nodeid(lh::LabelHierarchy, label::Label)
@@ -73,11 +88,16 @@ function _labels(lh::LabelHierarchy)
     return [_get_label(lh, i) for i in 1:nv(_hierarchy(lh))]
 end
 
+# TODO: ここだけ見てすべての場合について挙動がわかるようにする
 function _has_relation(lh::LabelHierarchy, label1::Label, label2::Label)
     @assert label1 != label2 != No_Label
-    _issuper(lh, label1, label2) || _issub(lh, label1, label2)
+    if !(_contains(lh, label1) && _contains(lh, label2))
+        error("labels not found in LabelHierarchy. ")
+    end
+    return _issuper(lh, label1, label2) || _issub(lh, label1, label2)
 end
 
+# ここでinsertionを定義するのは複雑なのでdatatypesのほうがよさそう
 function _add_label!(lh::LabelHierarchy, label::Label; super::Label, sub::Label, insert=false)
     mg = _hierarchy(lh)
 
