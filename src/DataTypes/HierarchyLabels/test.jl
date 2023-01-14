@@ -21,38 +21,13 @@ function test()
     # addの順番違いとinsert，エラー発生時の不変性をテスト
     addrel = begin
         lh = LabelHierarchy()
-        _add_label!(lh, l1; super = No_Label, sub = No_Label, insert=false)
-        _add_label!(lh, l2; super = No_Label, sub = No_Label)
-        _add_label!(lh, l3; super = No_Label, sub = No_Label)
+        _add_label!(lh, l1)
+        _add_label!(lh, l2)
+        _add_label!(lh, l3)
         _add_relation!(lh; super = l1, sub = l2)
         _add_relation!(lh; super = l2, sub = l3)
         lh
     end
-    addlb1 = begin
-        lh = LabelHierarchy()
-        _add_label!(lh, l1; super = No_Label, sub = No_Label)
-        _add_label!(lh, l2; super = l1      , sub = No_Label)
-        _add_label!(lh, l3; super = l2      , sub = No_Label)
-        lh
-    end
-    addlb2 = begin
-        lh = LabelHierarchy()
-        _add_label!(lh, l1; super = No_Label, sub = No_Label)
-        _add_label!(lh, l3; super = No_Label, sub = No_Label)
-        _add_label!(lh, l2; super = l1      , sub = l3      )
-        lh
-    end
-    inserted = begin
-        lh = LabelHierarchy()
-        _add_label!(lh, l1; super = No_Label, sub = No_Label)
-        _add_label!(lh, l3; super = l1      , sub = No_Label)
-        lh_copy = deepcopy(lh)
-        @test_throws ErrorException _add_label!(lh, l2; super = l1      , sub = l3)
-        @test lh == lh_copy
-        _add_label!(lh, l2; super = l1      , sub = l3      , insert=true)
-        lh
-    end
-    @test handmade == addrel == addlb1 == addlb2 == inserted
 
     #@test _hierarchy(addlb) == _hierarchy(addrel) == _hierarchy(handmade)
     #@test _label2node(addlb) == _label2node(addrel) == _label2node(handmade)

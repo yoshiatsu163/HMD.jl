@@ -1,171 +1,46 @@
-abstract type AbstractSystem{D} end
+# IOメモ
+# 行のフォーマットを指定してdatatypesに読み書きできるようにする
+# IOメモ
+# IOメモ
 
+const Entire_System = Label(1, "entire_system")
 
+function add_atom!(s::System, x::AbstractVector{<:AbstractFloat}, elem::AbstractString)
+    atom_id = natom(s) + 1
+    push!(s.position, x)
+    push!(s.element , Category{Element}(elem))
+    @assert add_vertex!(topology(s))
+    for hname in hierarchy_names(s)
+        add_label!(s, hname, atom_label(atom_id))
+        add_relation!(s, hname; super=Entire_System, sub=atom_label(atom_id))
+    end
 
-# data APIs ================================================================================================
+    return nothing
+end
 
-"""
-    subspace(condition)
+function add_bond!(s::System, atom_id1::Integer, atom_id2::Integer)
+    topo = topology(s)
+    @assert add_edge!(topo, atom_id1, atom_id2)
 
-A interace for temporal, spacial, and structural slicing of trajectory.
+    return nothing
+end
 
-⋅⋅⋅
-# Arguments
-- 'condition': condition to specify region in a trajectory.
-⋅⋅⋅
+function atom_label(atom_id::Integer)
+    Label(atom_id, "")
+end
 
-"""
-function subspace end
+function add!(s::System, addend::System)
+    #topology の connection pointが必要
 
+end
 
-"""
-    read_prop(condition)
+#function ⊕(lhs::System, rhs::System)
+#    # 重複あればエラー
+#    # 同一名のHierarchyあればadd
+#    # 異なるHierarchyあれば追加
+#end
 
-A interace for reading properties of subspace.
-
-⋅⋅⋅
-# Arguments
-- 'condition': condition to specify region in a trajectory.
-⋅⋅⋅
-
-"""
-function read_prop end
-
-
-"""
-write(data)
-
-A interace for writing properties, BCs, metadata into subspace.
-
-⋅⋅⋅
-# Arguments
-- 'data': Some data which can be wrote to a trajectory without changing the chemical structure in it.
-⋅⋅⋅
-
-"""
-function write end
-
-
-"""
-⊕(rhs, lhs)
-
-A interace for combining chemical stuctures.
-
-⋅⋅⋅
-# Arguments
-- 'rhs, lhs': Right and left hand side subspace object whose time lengh == 1.
-⋅⋅⋅
-
-"""
-function ⊕ end
-
-
-"""
-metadata(traj)
-
-A interace for reading metadata.
-
-⋅⋅⋅
-# Arguments
-- 'traj': A trajectory object.
-⋅⋅⋅
-
-
-"""
-function metadata end
-
-"""
-BC(traj)
-
-A interace for reading boundary condition.
-
-⋅⋅⋅
-# Arguments
-- 'traj': A trajectory object.
-⋅⋅⋅
-
-"""
-function BC end
-
-
-"""
-new(args)
-
-A interace for contstructing a trajectory.
-
-⋅⋅⋅
-# Arguments
-- 'args': Arguments needed to contstruct a trajectory object.
-⋅⋅⋅
-
-"""
-function new end
-
-
-"""
-heierchy(traj)
-
-A interace for reading subgraph heierchy dictionary: name -> heierchy tree.
-
-⋅⋅⋅
-# Arguments
-- 'traj': A trajectory object.
-⋅⋅⋅
-
-"""
-function heierchy end
-
-
-"""
-bounding_box(traj)
-
-A interace for reading subgraph heierchy dictionary: name -> heierchy tree.
-
-⋅⋅⋅
-# Arguments
-- 'traj': A trajectory object.
-⋅⋅⋅
-
-"""
-function bounding_box(sys <: AbstractSystem) end
-
-
-# disc IO APIs ================================================================================================
-#"""
-#heierchy(traj)
-#
-#A interace for combining chemical stuctures.
-#
-#⋅⋅⋅
-## Arguments
-#- 'traj': A trajectory object.
-#⋅⋅⋅
-#
-#"""
-#function  end
-#
-#"""
-#"""
-#function  end
-#"""
-#"""
-#function  end
-#"""
-#"""
-#function  end
-#"""
-#"""
-#function  end
-#"""
-#"""
-#function  end
-#"""
-#"""
-#function  end
-#"""
-#"""
-#function  end
-#"""
-#"""
-#function  end
-
+#function ⊗=(lhs::System, rhs::System)
+#    add!(s::System, addend::System)
+#    return nothing
+#end

@@ -9,7 +9,7 @@ using ..DataTypes: Id, Category
 import Base: getindex
 import Base: ==
 
-export Label, LabelHierarchy
+export Label, LabelHierarchy, LabelResult
 export id, type, ==
 export _add_label!, _add_relation!, _remove_label!, _remove_relation
 export _label2node, _contains, _has_relation ,_get_nodeid, getindex
@@ -26,7 +26,7 @@ end
 
 const No_Label = Label(typemin(Int64), "No_Label")
 
-@enum Result notfound=1
+@enum LabelResult Label_Missing=1 Label_Occupied=2 Label_Duplication=3 Relation_Missing=4 Relation_Occupied=5 Success=6
 
 function id(label::Label)
     label.id
@@ -98,121 +98,34 @@ function _has_relation(lh::LabelHierarchy, label1::Label, label2::Label)
 end
 
 # ここでinsertionを定義するのは複雑なのでdatatypesのほうがよさそう
-function _add_label!(lh::LabelHierarchy, label::Label; super::Label, sub::Label, insert=false)
+function _add_label!(lh::LabelHierarchy, label::Label)
     mg = _hierarchy(lh)
 
-    _is_add_ready(lh, label; super=super, sub=sub, insert)
-    ready_insert = if insert && super != sub != No_Label
-        _is_insert_ready(lh, label; super=super, sub=sub)
-    elseif insert && (super == No_Label || sub == No_Label)
-        error("super or sub is No_Label. ")
-    else
-        false
+    if _contains(lh, label)
+        return Label_Occupied
     end
 
-    # add node for label
-    if !add_vertex!(mg)
-        error("failed to add node to Hierarchy graph.")
-    end
+    @assert !add_vertex!(mg)
     current_id = nv(mg)
     set_prop!(mg, current_id, :label, label)
     push!(_label2node(lh), label => current_id)
 
-    # relation removal
-    if ready_insert && !_remove_relation!(lh, sub, super)
-        # if _remove_relation! failed
-        _remove_label!(lh, label)
-        pop!(_label2node(lh), label)
-        error("Relation removal between super and sub failed during inserting label. ")
-    end
-    # add_relation
-    if super != No_Label
-        _add_relation!(lh; sub=label, super=super)
-    end
-    if sub != No_Label
-        _add_relation!(lh; sub=sub, super=label)
-    end
+    return Success
 end
 
 function _add_relation!(lh::LabelHierarchy; super::Label, sub::Label)
-    if super == No_Label || sub == No_Label
-        error("super or sub is No_Label")
-    elseif !_contains(lh, super)
-        error("super not found ")
-    elseif !_contains(lh, sub)
-        error("sub not found ")
+    if !_contains(lh, super) || !_contains(lh, sub)
+        return Label_Missing
     elseif super == sub
-        error("super and sub are the same ")
+        return Label_Duplication
+    elseif _has_relation(lh, super, sub)
+        return Relation_Occupied
     end
 
     mg, super_id, sub_id = _hierarchy(lh), _get_nodeid(lh, super), _get_nodeid(lh, sub)
-    if has_edge(mg, sub_id, super_id)
-        error("relation already exists ")
-    elseif has_edge(mg, super_id, sub_id)
-        error("reversed relation already exists ")
-    end
+    @assert !add_edge!(mg, sub_id, super_id)
 
-    if !add_edge!(mg, sub_id, super_id)
-        error(
-            """add relation failed. LabelHierarchy is broken if you called "_add_relation!"
-            via "_add_label!" """
-        )
-    end
-end
-
-function _is_add_ready(lh::LabelHierarchy, label::Label; super::Label, sub::Label, insert)
-    # Chack if label already exists
-    if _contains(lh, label)
-        error("label already exists")
-    end
-
-    # Check wether super label and sub label exists
-    if super != No_Label && !_contains(lh, super)
-        error("super not found")
-    end
-    if sub != No_Label && !_contains(lh, sub)
-        error("sub not found")
-    end
-
-    if super != sub != No_Label
-        # Check if super label and sub label is equal
-        if super == sub
-            error("super and sub are the same")
-        end
-        #Check if relation exists
-        if !insert && _has_relation(lh, super, sub)
-            error(
-                """relation between super and sub already exists.
-                Set kwarg insert = true to insert label between existing relation. """
-            )
-        end
-    end
-
-    return nothing
-end
-
-function _is_insert_ready(lh::LabelHierarchy, label::Label; super::Label, sub::Label)
-    if super == No_Label || sub == No_Label
-        error("super label and sub label must not be No_Label when insert = true")
-    end
-
-    # Check if label has relation between super and sub
-    if _contains(lh, label)
-        if _has_relation(lh, label, super)
-            error("""label and super already has relation""")
-        elseif _has_relation(lh, label, sub)
-            error("""label and sub already has relation""")
-        end
-    end
-
-    # Check there is no relation between `super` and `sub`
-    ready_insert = if _has_relation(lh, super, sub)
-        true
-    elseif !_has_relation(lh, super, sub)
-        error("relation between super and sub not found.")
-    end
-
-    return ready_insert
+    return Success
 end
 
 function _remove_label!(lh::LabelHierarchy, label::Label)
@@ -227,7 +140,7 @@ function _remove_relation!(lh::LabelHierarchy, label1::Label, label2::Label)
     mg = _hierarchy(lh)
     n1 = _get_nodeid(lh, label1)
     n2 = _get_nodeid(lh, label2)
-    return rem_edge!(mg, n1, n2)
+    return rem_edge!(mg, n1, n2) || rem_edge!(mg, n2, n1)
 end
 
 function _super_id(lh::LabelHierarchy, label::Label)

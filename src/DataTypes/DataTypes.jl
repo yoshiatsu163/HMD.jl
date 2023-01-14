@@ -22,10 +22,12 @@ include("HierarchyLabels/HierarchyLabels.jl")
 using  .HierarchyLabels
 
 export Position, BoundingBox, System
-export get_position, set_position!
+export time, set_time!, natom, topology, box, set_box!
+export all_element, element, set_element!
+export push!, all_positions, position, set_position!
+export hierarchy_names, hierarchy, add_hierarchy!, remove_hierarchy!, merge_hierarchy!
+export labels, add_label!, add_relation!, insert_relation!, remove_label!, remove_relation!
 export Id, Category
-
-const Entire_System = Label(1, "entire_system")
 
 #####
 ##### Type `Position` definition
@@ -64,16 +66,6 @@ function push!(p::Position, x::AbstractVector)
     F = eltype(x)
     push!(p, MVector{D, F}(x))
 end
-
-function set_position!(p::Position, id::Integer, x::AbstractVector)
-    p[id] .= x
-end
-precompile(set_position!, (Position, Int64, Vector{Float64}))
-
-function get_position(p::Position, id::Integer)
-    p[id]
-end
-precompile(get_position, (Position, Int64))
 
 #####
 ##### Type `BoundingBox` definition
@@ -117,7 +109,7 @@ function BoundingBox(origin::AbstractVector, axis::AbstractMatrix)
     F = eltype(origin)
     BoundingBox(D, F, origin, axis)
 end
-precompile(BoundingBox, (Vector{Float64}, Matrix{Float64}))
+
 
 #####
 ##### Type `System` definition
@@ -135,6 +127,8 @@ mutable struct System{D, F<:AbstractFloat}
     hierarchy::Dict{<:AbstractString, LabelHierarchy}
     props::Dict{<:AbstractString, Dict{Label, Any}}
 end
+
+include("property.jl")
 
 function System{D, F}() where {D, F<:AbstractFloat}
     System{D, F}(
@@ -218,12 +212,20 @@ function hierarchy(s::System, hname::AbstractString)
     s.hierarchy[hname]
 end
 
+function merge_hierarchy!(s::System, hie1::Dict{<:AbstractString, LabelHierarchy}, hie2::Dict{<:AbstractString, LabelHierarchy})
+    s.hierarchy = merge(hie1, hie2)
+end
+
 function add_hierarchy!(s::System, hname::AbstractString)
     if hname in hierarchy_names(s)
         error("hierarchy $(hname) already exists. ")
     end
     push!(s.hierarchy, hname => LabelHierarchy())
-    _add_label!(hierarchy(s, hname), Entire_System, super=No_Label, sub=No_Label)
+    _add_label!(hierarchy(s, hname), Entire_System)
+end
+
+function remove_hierarchy!(s::System, hname::AbstractString)
+    delete!(s.hierarchy, hname)
 end
 
 function labels(s::System, hname::AbstractString)
@@ -234,120 +236,59 @@ end
 function add_label!(s::System, hname::AbstractString, label::Label)
     lh = hierarchy(s, hname)
 
-    if label ∈ lh
-        error("Label $(label) already exists. ")
+    result = _add_label!(lh, label)
+    @match result begin
+        Label_Occupied => error("label $(label) already exists. ")
+        Success        => return nothing
+        _              => error("fatal error")
     end
-
-    _add_label!(lh, label, super=No_Label, sub=No_Label)
-
-    return nothing
 end
 
 function add_relation!(s::System, hname::AbstractString; super::Label, sub::Label)
     lh = hierarchy(s, hname)
 
-    if super ∉ lh || sub ∉ lh
-        error("Super or sub not found. ")
-    elseif _has_relation(lh, super, sub)
-        error("""There in already relation between super and sub labels. Please use "insert_relation!()" instead. """)
+    result = _add_relation!(lh; super=super, sub=sub)
+    @match result begin
+        Label_Missing     => error("Super or sub not found. ")
+        Label_Duplication => error("super and sub are equal. ")
+        Relation_Occupied => error("""There in already relation between super and sub labels. Please use "insert_relation!()" instead. """)
+        success           => return nothing
+        _                 => error("fatal error")
     end
-
-    return nothing
 end
 
 function insert_relation!(s::System, hname::AbstractString, label::Label; super::Label, sub::Label)
     lh = hierarchy(s, hname)
 
-    if label ∈ lh
-        error("Label $(label) already exists. ")
-    elseif super ∉ lh || sub ∉ lh
-        error("Super or sub not found. ")
-    elseif !_has_relation(lh, super, sub)
-        error("""There is no relation between super and sub. """)
-    end
-
     add_label!(s, hname, label)
-    @assert _remove_relation!(lh, super, sub)
     add_relation!(s, hname; super=super, sub=label)
     add_relation!(s, hname; super=label, sub=sub)
+    @assert _remove_relation!(lh, super, sub)
 
     return nothing
 end
 
-function prop_names(s::System)
-    s.props |> keys
-end
+function remove_label!(s::System, hname::AbstractString, label::Label)
+    lh = hierarchy(s, hname)
 
-function props(s::System, pname::AbstractString)
-    s.props[pname]
-end
-
-function prop(s::System, pname::AbstractString, label::Label)
-    prop(s, pname)[label]
-end
-
-function labels_in_prop(s::System, pname::AbstractString)
-    props(s, pname) |> keys
-end
-
-function ∈(label::Label, prp::Dict{Label, Any})
-    label ∈ keys(prp)
-end
-
-function ∋(prp::Dict{Label, Any}, label::Label)
-    label ∈ keys(prp)
-end
-
-function ∉(label::Label, prp::Dict{Label, Any})
-    label ∉ keys(prp)
-end
-
-function add_prop!(s::System, pname::AbstractString)
-    push!(s.props, pname => Dict{Label, Any}())
-end
-
-function add_prop!(s::System, pname::AbstractString, label::Label, p::Any)
-    prp = props(s, pname)
-    if label ∈ prp
-        error("label $(label) already exists. ")
+    if !_contains!(lh, label)
+        error("label $(label) not found. ")
     end
-    push!(prp, label => p)
-end
-
-function set_prop!(s::System, pname::AbstractString, label::Label, p::Any)
-    if label ∉ props(s, pname)
-        error("label $(label) not found in property $(pname). ")
-    end
-    props(s, pname)[label] = p
-end
-
-function add_atom!(s::System, x::AbstractVector{<:AbstractFloat}, elem::AbstractString)
-    atom_id = natom(s) + 1
-    push!(s.position, x)
-    push!(s.element , Category{Element}(elem))
-    @assert add_vertex!(topology(s))
-    for hname in hierarchy_names(s)
-        lh = hierarchy(s, hname)
-        _add_label!(lh, atom_label(atom_id), super=Entire_System, sub=No_Label)
-    end
+    @assert _remove_label!(lh, label)
 
     return nothing
 end
 
-function add_bond!(s::System, atom_id1::Integer, atom_id2::Integer)
-    topo = topology(s)
-    @assert add_edge!(topo, atom_id1, atom_id2)
+function remove_relation!(s::System, hname::AbstractString; super::Label, sub::Label)
+    lh = hierarchy(s, hname)
+
+    if !_has_relation(lh, super, sub)
+        error("relation betewwn $(super) and $(sub) not found. ")
+    end
+    @assert _remove_relation!(lh, super, sub)
 
     return nothing
 end
-
-function atom_label(atom_id::Integer)
-    Label(atom_id, "")
-end
-
-
-
-include("interface.jl")
 
 #function System(g::MetaGraph)
 #    D = props(g, 1)[:position] |> length

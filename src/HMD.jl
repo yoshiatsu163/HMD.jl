@@ -1,14 +1,15 @@
 module HMD
 
 using Graphs
+using LinearAlgebra
 using MetaGraphs
 using PeriodicTable
-using Unitful
 using StaticArrays
-using Pipe
+using Unitful
 
 include("DataTypes/DataTypes.jl")
 using .DataTypes
+include("interface.jl")
 
 include("GenericIO/GenericIO.jl")
 using .GenericIO
