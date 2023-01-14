@@ -7,7 +7,7 @@ function props(s::System, pname::AbstractString)
 end
 
 function prop(s::System, pname::AbstractString, label::Label)
-    prop(s, pname)[label]
+    props(s, pname)[label]
 end
 
 function labels_in_prop(s::System, pname::AbstractString)
