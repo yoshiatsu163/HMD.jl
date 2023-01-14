@@ -31,7 +31,8 @@ end
 
 function add!(s::System, addend::System)
     #topology の connection pointが必要
-
+    #一般のsystemは自由度が高すぎてaddが定義困難 -> HMDPolymer等を作って限定的にaddを定義
+    #   AbstractSystemの定義が必要
 end
 
 #function ⊕(lhs::System, rhs::System)
