@@ -8,11 +8,14 @@ using ..DataTypes: Id, Category
 
 import Base: getindex
 import Base: ==
+import Base: ∈
+import Base: ∋
+import Base: ∉
 
 export Label, LabelHierarchy, LabelResult
 export id, type, ==
 export _add_label!, _add_relation!, _remove_label!, _remove_relation
-export _label2node, _contains, _has_relation ,_get_nodeid, getindex
+export _label2node, _contains, ∈, ∋, ∉, _has_relation ,_get_nodeid, getindex
 export _issuper, _issub, _super_id, _sub_id, _super, _sub
 
 struct Label
@@ -53,6 +56,22 @@ function _label2node(lh::LabelHierarchy)
     return lh.label2node
 end
 
+function update_l2n!(lh::LabelHierarchy)
+    mg = _hierarchy(lh)
+    l2n = _label2node(lh)
+    labels = [props(mg, i)[:label] for i in vertices(mg)]
+
+    @assert allunique(labels)
+    @assert !is_cyclic(mg)
+
+    for (node, label) in zip(vertices(mg), labels)
+        @assert label ∈ keys(l2n)
+        l2n[label] = node
+    end
+
+    return nothing
+end
+
 function _contains(lh::LabelHierarchy, label::Label)
     return label ∈ _label2node(lh) |> keys
 end
@@ -90,7 +109,6 @@ end
 
 # TODO: ここだけ見てすべての場合について挙動がわかるようにする
 function _has_relation(lh::LabelHierarchy, label1::Label, label2::Label)
-    @assert label1 != label2 != No_Label
     if !(_contains(lh, label1) && _contains(lh, label2))
         error("labels not found in LabelHierarchy. ")
     end
@@ -105,10 +123,12 @@ function _add_label!(lh::LabelHierarchy, label::Label)
         return Label_Occupied
     end
 
-    @assert !add_vertex!(mg)
+    @assert add_vertex!(mg)
     current_id = nv(mg)
     set_prop!(mg, current_id, :label, label)
     push!(_label2node(lh), label => current_id)
+
+    @assert !is_cyclic(mg)
 
     return Success
 end
@@ -123,7 +143,9 @@ function _add_relation!(lh::LabelHierarchy; super::Label, sub::Label)
     end
 
     mg, super_id, sub_id = _hierarchy(lh), _get_nodeid(lh, super), _get_nodeid(lh, sub)
-    @assert !add_edge!(mg, sub_id, super_id)
+    @assert add_edge!(mg, sub_id, super_id)
+
+    @assert !is_cyclic(mg)
 
     return Success
 end
@@ -132,15 +154,21 @@ function _remove_label!(lh::LabelHierarchy, label::Label)
     @assert label != No_Label
     mg = _hierarchy(lh)
     n = _get_nodeid(lh, label)
-    return rem_vertex!(mg, n)
+    result = rem_vertex!(mg, n)
+
+    result && update_l2n!(lh)
+    return result
 end
 
 function _remove_relation!(lh::LabelHierarchy, label1::Label, label2::Label)
-    @assert label1 != label2 != No_Label
     mg = _hierarchy(lh)
     n1 = _get_nodeid(lh, label1)
+    println("\n\n\n\n\n")
     n2 = _get_nodeid(lh, label2)
-    return rem_edge!(mg, n1, n2) || rem_edge!(mg, n2, n1)
+    result = rem_edge!(mg, n1, n2) || rem_edge!(mg, n2, n1)
+
+    result && update_l2n!(lh)
+    return result
 end
 
 function _super_id(lh::LabelHierarchy, label::Label)

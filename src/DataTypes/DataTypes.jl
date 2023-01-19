@@ -21,13 +21,15 @@ include("HierarchyLabels/HierarchyLabels.jl")
 
 using  .HierarchyLabels
 
-export Position, BoundingBox, System
+export Position, BoundingBox, AbstractSystem, System, Label
 export time, set_time!, natom, topology, box, set_box!
 export all_element, element, set_element!
 export push!, all_positions, position, set_position!
 export hierarchy_names, hierarchy, add_hierarchy!, remove_hierarchy!, merge_hierarchy!
 export labels, add_label!, add_relation!, insert_relation!, remove_label!, remove_relation!
 export Id, Category
+
+export contains, has_relation, issuper, issub, super, sub
 
 #####
 ##### Type `Position` definition
@@ -115,7 +117,9 @@ end
 ##### Type `System` definition
 #####
 
-mutable struct System{D, F<:AbstractFloat}
+abstract type AbstractSystem end
+
+mutable struct System{D, F<:AbstractFloat} <: AbstractSystem
     time::F
     topology::Graph{<:Integer}
     box::BoundingBox{D, F}
@@ -288,6 +292,31 @@ function remove_relation!(s::System, hname::AbstractString; super::Label, sub::L
     @assert _remove_relation!(lh, super, sub)
 
     return nothing
+end
+
+function contains(s::System, hname::AbstractString, label::Label)
+    lh = hierarchy(s, hname)
+    return _contains(lh, label)
+end
+
+function issuper(s::System, hname::AbstractString, label1::Label, label2::Label)
+    lh = hierarchy(s, hname)
+    return _issuper(lh, label1, label2)
+end
+
+function issub(s::System, hname::AbstractString, label1::Label, label2::Label)
+    lh = hierarchy(s, hname)
+    return _issub(lh, label1, label2)
+end
+
+function super(s::System, hname::AbstractString, label::Label)
+    lh = hierarchy(s, hname)
+    return _super(lh, label)
+end
+
+function sub(s::System, hname::AbstractString, label::Label)
+    lh = hierarchy(s, hname)
+    return _sub(lh, label)
 end
 
 #function System(g::MetaGraph)
