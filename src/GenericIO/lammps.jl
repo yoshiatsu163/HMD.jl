@@ -57,9 +57,9 @@ end
 
 function readfile1(filename)
     lines = getlines(filename)
-    
+
     s = System()
-    
+
     # header
     num = map(["atoms", "bonds", "angles", "dihedrals", "impropers"]) do str
         s = split(lines[findln(str, lines)])[2]
@@ -99,7 +99,7 @@ function readfile1(filename)
     end
     @assret length(atoms) == num["atoms"]
     @assret length(bonds) == num["bonds"]
-    
+
     angles = begin
         alines = view(lines, findln("Angles", lines)+2, findln("Dihedrals", lines)-2)
         map(alines) do line
@@ -112,9 +112,9 @@ function readfile1(filename)
         map(alines) do line
             a = @scan "%i %i %i %i %i %i" line
             Angles(a[1], a[2], a[3], a[4], a[5])
-        end 
-    end    
-    
+        end
+    end
+
 
 
 end
@@ -133,7 +133,7 @@ function infer_atomfmt(line)
         end
     end
     fmt = join(fmt, " ")
-    
+
     if fmt == "%i %i %i %f %f %f %f" # id type mol charge x y z
         :full
     elseif fmt == "%i %i %i %i %f %f %f" # id type mol charge x y z
@@ -179,7 +179,7 @@ function load_box(lines)
     elseif mode == "ortho"
         0.0, 0.0, 0.0
     end
-    
+
     origin = data[:,1]
     axis = [lx xy xz
             0  ly yz
@@ -212,7 +212,7 @@ end
 function readfile(filename)
     s = store_by_section(filename)
     section2data(s; conserve_mass=true)
-end 
+end
 
 # MetaGraphへの変換を優先してangle以降はいったん無視
 # lines_between(signal1, signal2)を定義すると楽かも
@@ -244,7 +244,7 @@ function store_by_section(filename)
     elseif "Velocities" in lines
         println("WARNING: Section \"Velocities\" is currently ignored.")
     end
-    
+
     sections = Sections()
     # header section
     header_end  = findfirst(l->occursin("Masses", l), lines)
@@ -350,7 +350,7 @@ function write_lmpdat(filename, atoms, topologies, coeffs, box)
     @pipe filter(t->t[:category]=="Dihedral Coeffs", coeffs) |> length(select(_, :cid)) |> write(fp, "$_ dihedral types\n")
     @pipe filter(t->t[:category]=="Improper Coeffs", coeffs) |> length(select(_, :cid)) |> write(fp, "$_ improper types\n")
     write(fp, "\n")
-    
+
     write(fp, "0.0 $(box[1]) xlo xhi\n")
     write(fp, "0.0 $(box[2]) ylo yhi\n")
     write(fp, "0.0 $(box[3]) zlo zhi\n")

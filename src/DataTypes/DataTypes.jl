@@ -13,7 +13,7 @@ using MetaGraphs
 using PeriodicTable
 using StaticArrays
 
-import Base: push!, getindex
+import Base: getindex
 import Base: >, <, >=, <=, +, -, *, /, ==, string
 
 include("util.jl")
@@ -24,8 +24,9 @@ using  .HierarchyLabels
 export Position, BoundingBox, AbstractSystem, System, Label
 export time, set_time!, natom, topology, box, set_box!
 export all_element, element, set_element!
-export push!, all_positions, position, set_position!
+export all_positions, position, set_position!
 export hierarchy_names, hierarchy, add_hierarchy!, remove_hierarchy!, merge_hierarchy!
+export prop_names, props, prop, labels_in_prop, add_prop!, set_prop!
 export labels, add_label!, add_relation!, insert_relation!, remove_label!, remove_relation!
 export Id, Category
 
@@ -61,12 +62,6 @@ end
 
 function Position(n::Integer)
     Position(3, Float64, n)
-end
-
-function push!(p::Position, x::AbstractVector)
-    D = length(x)
-    F = eltype(x)
-    push!(p, MVector{D, F}(x))
 end
 
 #####
@@ -146,81 +141,81 @@ function System{D, F}() where {D, F<:AbstractFloat}
     )
 end
 
-function natom(s::System)
+function natom(s::AbstractSystem)
     length(s.position)
 end
 
-function time(s::System)
+function time(s::AbstractSystem)
     s.time
 end
 
-function set_time!(s::System, time::AbstractFloat)
+function set_time!(s::AbstractSystem, time::AbstractFloat)
     s.time = time
 end
 
-function topology(s::System)
+function topology(s::AbstractSystem)
     s.topology
 end
 
-function box(s::System)
+function box(s::AbstractSystem)
     s.box
 end
 
-function set_box!(s::System, box::BoundingBox)
+function set_box!(s::AbstractSystem, box::BoundingBox)
     s.box = box
 end
 
-function all_element(s::System)
+function all_element(s::AbstractSystem)
     s.element
 end
 
-function element(s::System, atom_id::Integer)
+function element(s::AbstractSystem, atom_id::Integer)
     s.element[atom_id]
 end
 
-function set_element!(s::System, atom_id::Integer, ename::AbstractString)
+function set_element!(s::AbstractSystem, atom_id::Integer, ename::AbstractString)
     s.element[atom_id] = Category{Element}(ename)
 end
 
-function set_element!(s::System, atom_ids::AbstractVector{<:Integer}, enames::AbstractVector{<:AbstractString})
+function set_element!(s::AbstractSystem, atom_ids::AbstractVector{<:Integer}, enames::AbstractVector{<:AbstractString})
     if length(atom_ids) != length(enames)
         throw(DimensionMismatch("Dimension of atom_ids is $(length(atom_ids)) but enames dimension is $(length(enames))"))
     end
     s.element[atom_ids] .= Category{Element}.(enames)
 end
 
-function all_positions(s::System)
+function all_positions(s::AbstractSystem)
     s.position
 end
 
-function position(s::System, atom_id::Integer)
+function position(s::AbstractSystem, atom_id::Integer)
     s.position[atom_id]
 end
 
-function set_position!(s::System, atom_id::Integer, x::AbstractVector{<:AbstractFloat})
+function set_position!(s::AbstractSystem, atom_id::Integer, x::AbstractVector{<:AbstractFloat})
     s.position[atom_id] .= x
 end
 
-function set_position!(s::System, atom_ids::AbstractVector{<:Integer}, x::AbstractVector{<:AbstractVector{<:AbstractFloat}})
+function set_position!(s::AbstractSystem, atom_ids::AbstractVector{<:Integer}, x::AbstractVector{<:AbstractVector{<:AbstractFloat}})
     if length(atom_ids) != length(x)
         throw(DimensionMismatch("Dimension of atom_ids is $(length(atom_ids)) but enames dimension is $(length(enames))"))
     end
     s.position[atom_ids] .= x
 end
 
-function hierarchy_names(s::System)
+function hierarchy_names(s::AbstractSystem)
     s.hierarchy |> keys
 end
 
-function hierarchy(s::System, hname::AbstractString)
+function hierarchy(s::AbstractSystem, hname::AbstractString)
     s.hierarchy[hname]
 end
 
-function merge_hierarchy!(s::System, hie1::Dict{<:AbstractString, LabelHierarchy}, hie2::Dict{<:AbstractString, LabelHierarchy})
+function merge_hierarchy!(s::AbstractSystem, hie1::Dict{<:AbstractString, LabelHierarchy}, hie2::Dict{<:AbstractString, LabelHierarchy})
     s.hierarchy = merge(hie1, hie2)
 end
 
-function add_hierarchy!(s::System, hname::AbstractString)
+function add_hierarchy!(s::AbstractSystem, hname::AbstractString)
     if hname in hierarchy_names(s)
         error("hierarchy $(hname) already exists. ")
     end
@@ -228,16 +223,16 @@ function add_hierarchy!(s::System, hname::AbstractString)
     _add_label!(hierarchy(s, hname), Entire_System)
 end
 
-function remove_hierarchy!(s::System, hname::AbstractString)
+function remove_hierarchy!(s::AbstractSystem, hname::AbstractString)
     delete!(s.hierarchy, hname)
 end
 
-function labels(s::System, hname::AbstractString)
+function labels(s::AbstractSystem, hname::AbstractString)
     lh = hierarchy(s, hname)
     return _labels(lh)
 end
 
-function add_label!(s::System, hname::AbstractString, label::Label)
+function add_label!(s::AbstractSystem, hname::AbstractString, label::Label)
     lh = hierarchy(s, hname)
 
     result = _add_label!(lh, label)
@@ -248,7 +243,7 @@ function add_label!(s::System, hname::AbstractString, label::Label)
     end
 end
 
-function add_relation!(s::System, hname::AbstractString; super::Label, sub::Label)
+function add_relation!(s::AbstractSystem, hname::AbstractString; super::Label, sub::Label)
     lh = hierarchy(s, hname)
 
     result = _add_relation!(lh; super=super, sub=sub)
@@ -261,7 +256,7 @@ function add_relation!(s::System, hname::AbstractString; super::Label, sub::Labe
     end
 end
 
-function insert_relation!(s::System, hname::AbstractString, label::Label; super::Label, sub::Label)
+function insert_relation!(s::AbstractSystem, hname::AbstractString, label::Label; super::Label, sub::Label)
     lh = hierarchy(s, hname)
 
     add_label!(s, hname, label)
@@ -272,7 +267,7 @@ function insert_relation!(s::System, hname::AbstractString, label::Label; super:
     return nothing
 end
 
-function remove_label!(s::System, hname::AbstractString, label::Label)
+function remove_label!(s::AbstractSystem, hname::AbstractString, label::Label)
     lh = hierarchy(s, hname)
 
     if !_contains!(lh, label)
@@ -283,7 +278,7 @@ function remove_label!(s::System, hname::AbstractString, label::Label)
     return nothing
 end
 
-function remove_relation!(s::System, hname::AbstractString; super::Label, sub::Label)
+function remove_relation!(s::AbstractSystem, hname::AbstractString; super::Label, sub::Label)
     lh = hierarchy(s, hname)
 
     if !_has_relation(lh, super, sub)
@@ -294,30 +289,32 @@ function remove_relation!(s::System, hname::AbstractString; super::Label, sub::L
     return nothing
 end
 
-function contains(s::System, hname::AbstractString, label::Label)
+function contains(s::AbstractSystem, hname::AbstractString, label::Label)
     lh = hierarchy(s, hname)
     return _contains(lh, label)
 end
 
-function issuper(s::System, hname::AbstractString, label1::Label, label2::Label)
+function issuper(s::AbstractSystem, hname::AbstractString, label1::Label, label2::Label)
     lh = hierarchy(s, hname)
     return _issuper(lh, label1, label2)
 end
 
-function issub(s::System, hname::AbstractString, label1::Label, label2::Label)
+function issub(s::AbstractSystem, hname::AbstractString, label1::Label, label2::Label)
     lh = hierarchy(s, hname)
     return _issub(lh, label1, label2)
 end
 
-function super(s::System, hname::AbstractString, label::Label)
+function super(s::AbstractSystem, hname::AbstractString, label::Label)
     lh = hierarchy(s, hname)
     return _super(lh, label)
 end
 
-function sub(s::System, hname::AbstractString, label::Label)
+function sub(s::AbstractSystem, hname::AbstractString, label::Label)
     lh = hierarchy(s, hname)
     return _sub(lh, label)
 end
+
+include("test.jl")
 
 #function System(g::MetaGraph)
 #    D = props(g, 1)[:position] |> length

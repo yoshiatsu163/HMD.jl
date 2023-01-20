@@ -1,8 +1,3 @@
-# IOメモ
-# 行のフォーマットを指定してdatatypesに読み書きできるようにする
-# IOメモ
-# IOメモ
-
 const Entire_System = Label(1, "entire_system")
 
 function add_atom!(s::System, x::AbstractVector{<:AbstractFloat}, elem::AbstractString)
@@ -45,3 +40,14 @@ end
 #    add!(s::System, addend::System)
 #    return nothing
 #end
+
+function hmdsave(name::AbstractString, s::AbstractSystem)
+    jldsave(name; system=s)
+    return nothing
+end
+
+function hmdread(name::AbstractString)
+    jldopen(name, "r+") do file
+        file["system"]
+    end |> return
+end

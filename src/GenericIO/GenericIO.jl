@@ -7,6 +7,7 @@
 
 module GenericIO
 using PeriodicTable, Unitful
+using ..DataTypes
 
 #export readfile, readfile_MG
 #

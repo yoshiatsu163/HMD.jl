@@ -163,7 +163,6 @@ end
 function _remove_relation!(lh::LabelHierarchy, label1::Label, label2::Label)
     mg = _hierarchy(lh)
     n1 = _get_nodeid(lh, label1)
-    println("\n\n\n\n\n")
     n2 = _get_nodeid(lh, label2)
     result = rem_edge!(mg, n1, n2) || rem_edge!(mg, n2, n1)
 
