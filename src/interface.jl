@@ -24,6 +24,11 @@ function atom_label(atom_id::Integer)
     Label(atom_id, "")
 end
 
+# TODO
+#function atom_label(T::Type{<:AbstractLabel}, atom_id::Integer)
+#    T(atom_id, "")
+#end
+
 function add!(s::System, addend::System)
     #topology の connection pointが必要
     #一般のsystemは自由度が高すぎてaddが定義困難 -> HMDPolymer等を作って限定的にaddを定義

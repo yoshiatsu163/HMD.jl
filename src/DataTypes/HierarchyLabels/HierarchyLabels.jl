@@ -17,8 +17,12 @@ export id, type, ==
 export _add_label!, _add_relation!, _remove_label!, _remove_relation
 export _label2node, _contains, ∈, ∋, ∉, _has_relation ,_get_nodeid, getindex
 export _issuper, _issub, _super_id, _sub_id, _super, _sub
+export _root, _depth
 
-struct Label
+# AbstractLabel must define constructor s.t. ALabel(id::Integer, type)
+abstract type AbstractLabel end
+
+struct Label <: AbstractLabel
     id::Id{Label}
     type::Category{Label}
 end
@@ -170,6 +174,14 @@ function _remove_relation!(lh::LabelHierarchy, label1::Label, label2::Label)
     return result
 end
 
+function _super_id(lh::LabelHierarchy, id::Integer)
+    return outneighbors(_hierarchy(lh), id)
+end
+
+function _sub_id(lh::LabelHierarchy, id::Integer)
+    return inneighbors(_hierarchy(lh), id)
+end
+
 function _super_id(lh::LabelHierarchy, label::Label)
     @assert label != No_Label
     id = _get_nodeid(lh, label)
@@ -217,6 +229,28 @@ function ==(lhs::LabelHierarchy, rhs::LabelHierarchy)
 
     return _label2node(lhs) |> length == _label2node(rhs) |> length
 end
+
+function _root(lh::LabelHierarchy)
+    mg = _hierarchy(lh)
+    root_id = filter(i -> isempty(_super_id(lh, i)), nv(mg))
+
+    @assert length(result_id) == 1
+    return root_id[1]
+end
+
+# treeではないのでDFSは使えない
+function _depth(lh::LabelHierarchy)
+    sub_ids = _sub_id(lh, root(lh))
+    depth = 0
+    while !isempty(sub_ids)
+        depth += 1
+        sub_ids = mapreduce(i -> _sub_id(lh, i), append!, sub_ids)
+    end
+
+    # excluding atom label
+    return depth - 1
+end
+
 
 include("test.jl")
 end #module

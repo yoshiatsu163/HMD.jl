@@ -14,7 +14,9 @@ using PeriodicTable
 using StaticArrays
 
 import Base: getindex
-import Base: >, <, >=, <=, +, -, *, /, ==, string
+import Base: >, <, >=, <=, +, -, *, /, ==, string, show
+import Base: position, time, contains
+import MetaGraphs: set_prop!, props
 
 include("util.jl")
 include("HierarchyLabels/HierarchyLabels.jl")
@@ -312,6 +314,26 @@ end
 function sub(s::AbstractSystem, hname::AbstractString, label::Label)
     lh = hierarchy(s, hname)
     return _sub(lh, label)
+end
+
+struct HierarchyScheme
+    mg::MetaDiGraph
+end
+
+function hierarchy_scheme(s::AbstractSystem, hname::AbstractString)
+    lh = hierarchy(s, hname)
+    depth = depth(lh)
+
+    labels_in_depth = [Vector{Label}(undef, 0) for _ in 1:depth+1]
+    push!(labels_in_depth[1], [root(lh)])
+    for i in 1:depth
+        push!(label_in_depth[i+1], )
+
+    end
+end
+
+function show(hs::HierarchyScheme)
+
 end
 
 include("test.jl")
