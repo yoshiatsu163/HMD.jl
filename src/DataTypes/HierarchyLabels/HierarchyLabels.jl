@@ -1,8 +1,8 @@
 module HierarchyLabels
 
 using Graphs
-using Match
 using MetaGraphs
+using MLStyle
 
 using ..DataTypes: Id, Category
 
@@ -11,8 +11,10 @@ import Base: ==
 import Base: ∈
 import Base: ∋
 import Base: ∉
+import Base: show
 
-export Label, LabelHierarchy, LabelResult
+export Label, LabelHierarchy
+export LabelResult, Label_Missing, Label_Occupied, Label_Duplication, Relation_Missing, Relation_Occupied, Success
 export id, type, ==
 export _add_label!, _add_relation!, _remove_label!, _remove_relation
 export _label2node, _contains, ∈, ∋, ∉, _has_relation ,_get_nodeid, getindex
@@ -33,7 +35,15 @@ end
 
 const No_Label = Label(typemin(Int64), "No_Label")
 
-@enum LabelResult Label_Missing=1 Label_Occupied=2 Label_Duplication=3 Relation_Missing=4 Relation_Occupied=5 Success=6
+#@enum LabelResult Label_Missing=1 Label_Occupied=2 Label_Duplication=3 Relation_Missing=4 Relation_Occupied=5 Success=6
+@data LabelResult begin
+    Label_Missing
+    Label_Occupied
+    Label_Duplication
+    Relation_Missing
+    Relation_Occupied
+    Success
+end
 
 function id(label::Label)
     label.id
@@ -45,6 +55,18 @@ end
 
 function ==(lhs::Label, rhs::Label)
     id(lhs) == id(rhs) && type(lhs) == type(rhs)
+end
+
+function Base.show(io::IO, ::MIME"text/plain", label::Label)
+    i = convert(Int64, id(label))
+    t = type(label) |> string
+    print("Label($i, \"$t\")")
+end
+
+function Base.print_to_string(label::Label)
+    i = convert(Int64, id(label))
+    t = type(label) |> string
+    print("Label($i, \"$t\")")
 end
 
 Base.@kwdef mutable struct LabelHierarchy
@@ -77,7 +99,19 @@ function update_l2n!(lh::LabelHierarchy)
 end
 
 function _contains(lh::LabelHierarchy, label::Label)
-    return label ∈ _label2node(lh) |> keys
+    #println(label)
+    #println("\n")
+    #for p in _label2node(lh) |> pairs
+    #    println(p)
+    #end
+    #return label ∈ (_label2node(lh) |> keys |> collect)
+
+    mg = _hierarchy(lh)
+    for i in vertices(mg)
+        label == get_prop(mg, i, :label) && return true
+    end
+
+    return false
 end
 
 function ∈(label::Label, lh::LabelHierarchy)
@@ -114,7 +148,7 @@ end
 # TODO: ここだけ見てすべての場合について挙動がわかるようにする
 function _has_relation(lh::LabelHierarchy, label1::Label, label2::Label)
     if !(_contains(lh, label1) && _contains(lh, label2))
-        error("labels not found in LabelHierarchy. ")
+        error("labels not found in LabelHierarchy. ")Label_Occupied
     end
     return _issuper(lh, label1, label2) || _issub(lh, label1, label2)
 end

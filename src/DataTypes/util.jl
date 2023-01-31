@@ -10,6 +10,10 @@ function Int(i::Id)
     i.id
 end
 
+function Base.convert(::Type{<:Integer}, i::Id)
+    Int64(i.id)
+end
+
 for op in [:(+), :(-), :(*), :(/)]
     @eval function $op(lhs::Id{T}, rhs::Id{T}) where {T}
         Id{T}($op(lhs.id, rhs.id))
@@ -38,7 +42,7 @@ end
 ##### Category definition
 #####
 
-struct Category{T} <: AbstractString
+struct Category{T}# <: AbstractString
     str::String
 end
 

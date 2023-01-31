@@ -8,14 +8,14 @@ module DataTypes
 
 using Graphs
 using LinearAlgebra
-using Match
 using MetaGraphs
+using MLStyle
 using PeriodicTable
 using StaticArrays
 
 import Base: getindex
-import Base: >, <, >=, <=, +, -, *, /, ==, string, show
-import Base: position, time, contains
+import Base: >, <, >=, <=, +, -, *, /, ==, string, show, convert
+import Base: position, time, contains, show
 import MetaGraphs: set_prop!, props
 
 include("util.jl")
@@ -23,16 +23,18 @@ include("HierarchyLabels/HierarchyLabels.jl")
 
 using  .HierarchyLabels
 
-export Position, BoundingBox, AbstractSystem, System, Label
+export Position, BoundingBox, AbstractSystem, System, Label, LabelHierarchy
 export time, set_time!, natom, topology, box, set_box!
 export all_element, element, set_element!
 export all_positions, position, set_position!
 export hierarchy_names, hierarchy, add_hierarchy!, remove_hierarchy!, merge_hierarchy!
 export prop_names, props, prop, labels_in_prop, add_prop!, set_prop!
 export labels, add_label!, add_relation!, insert_relation!, remove_label!, remove_relation!
-export Id, Category
+export Id, Category, Entire_System
 
-export contains, has_relation, issuper, issub, super, sub
+export contains, has_relation, issuper, issub, super, sub, print_to_string
+
+const Entire_System = Label(1, "entire_system")
 
 #####
 ##### Type `Position` definition
@@ -222,7 +224,10 @@ function add_hierarchy!(s::AbstractSystem, hname::AbstractString)
         error("hierarchy $(hname) already exists. ")
     end
     push!(s.hierarchy, hname => LabelHierarchy())
-    _add_label!(hierarchy(s, hname), Entire_System)
+    #_add_label!(hierarchy(s, hname), Entire_System)
+    add_label!(s, hname, Entire_System)
+
+    return nothing
 end
 
 function remove_hierarchy!(s::AbstractSystem, hname::AbstractString)
@@ -314,26 +319,6 @@ end
 function sub(s::AbstractSystem, hname::AbstractString, label::Label)
     lh = hierarchy(s, hname)
     return _sub(lh, label)
-end
-
-struct HierarchyScheme
-    mg::MetaDiGraph
-end
-
-function hierarchy_scheme(s::AbstractSystem, hname::AbstractString)
-    lh = hierarchy(s, hname)
-    depth = depth(lh)
-
-    labels_in_depth = [Vector{Label}(undef, 0) for _ in 1:depth+1]
-    push!(labels_in_depth[1], [root(lh)])
-    for i in 1:depth
-        push!(label_in_depth[i+1], )
-
-    end
-end
-
-function show(hs::HierarchyScheme)
-
 end
 
 include("test.jl")
