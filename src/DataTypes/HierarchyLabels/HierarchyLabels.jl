@@ -13,10 +13,10 @@ import Base: ∋
 import Base: ∉
 import Base: show
 
-export Label, LabelHierarchy
+export HLabel, LabelHierarchy
 export LabelResult, Label_Missing, Label_Occupied, Label_Duplication, Relation_Missing, Relation_Occupied, Success
 export id, type, ==
-export _add_label!, _add_relation!, _remove_label!, _remove_relation
+export _add_label!, _add_relation!, _remove_label!, _remove_relation!
 export _label2node, _contains, ∈, ∋, ∉, _has_relation ,_get_nodeid, getindex
 export _issuper, _issub, _super_id, _sub_id, _super, _sub
 export _root, _depth
@@ -24,16 +24,16 @@ export _root, _depth
 # AbstractLabel must define constructor s.t. ALabel(id::Integer, type)
 abstract type AbstractLabel end
 
-struct Label <: AbstractLabel
-    id::Id{Label}
-    type::Category{Label}
+struct HLabel <: AbstractLabel
+    type::Category{HLabel}
+    id::Id{HLabel}
 end
 
-function Label(id::Integer, type::AbstractString)
-    Label(Id{Label}(id), Category{Label}(type))
+function HLabel(type::AbstractString, id::Integer)
+    HLabel(Category{HLabel}(type), Id{HLabel}(id))
 end
 
-const No_Label = Label(typemin(Int64), "No_Label")
+#const No_Label = HLabel(typemin(Int64), "No_Label")
 
 #@enum LabelResult Label_Missing=1 Label_Occupied=2 Label_Duplication=3 Relation_Missing=4 Relation_Occupied=5 Success=6
 @data LabelResult begin
@@ -45,33 +45,51 @@ const No_Label = Label(typemin(Int64), "No_Label")
     Success
 end
 
-function id(label::Label)
+function id(label::HLabel)
     label.id
 end
 
-function type(label::Label)
+function type(label::HLabel)
     label.type
 end
 
-function ==(lhs::Label, rhs::Label)
+function ==(lhs::HLabel, rhs::HLabel)
     id(lhs) == id(rhs) && type(lhs) == type(rhs)
 end
 
-function Base.show(io::IO, ::MIME"text/plain", label::Label)
+function Base.show(io::IO, ::MIME"text/plain", label::HLabel)
     i = convert(Int64, id(label))
     t = type(label) |> string
-    print("Label($i, \"$t\")")
+    print(io, "HLabel(\"$t\", $i)")
 end
 
-function Base.print_to_string(label::Label)
+function Base.show(label::HLabel)
     i = convert(Int64, id(label))
     t = type(label) |> string
-    print("Label($i, \"$t\")")
+    print("HLabel(\"$t\", $i)")
+end
+
+function Base.print_to_string(label::HLabel)
+    i = convert(Int64, id(label))
+    t = type(label) |> string
+    return "HLabel(\"$t\", $i)"
 end
 
 Base.@kwdef mutable struct LabelHierarchy
     mg::MetaDiGraph = MetaDiGraph()
-    label2node::Dict{Label, Int64} = Dict{Label, Int64}()
+    label2node::Dict{HLabel, Int64} = Dict{HLabel, Int64}()
+end
+
+function Base.show(io::IO, ::MIME"text/plain", lh::LabelHierarchy)
+    subtree(lh, label, level, indent) = begin
+        label == _root(lh) && println("$label")
+        for s in _sub(lh, label)
+            str = join(fill(" ", level * indent)) * "$s"
+            println(io, str)
+            subtree(lh, s, level + 1, indent)
+        end
+    end
+    subtree(lh, _root(lh), 1, 4)
 end
 
 function _hierarchy(lh::LabelHierarchy)
@@ -98,7 +116,7 @@ function update_l2n!(lh::LabelHierarchy)
     return nothing
 end
 
-function _contains(lh::LabelHierarchy, label::Label)
+function _contains(lh::LabelHierarchy, label::HLabel)
     #println(label)
     #println("\n")
     #for p in _label2node(lh) |> pairs
@@ -114,19 +132,19 @@ function _contains(lh::LabelHierarchy, label::Label)
     return false
 end
 
-function ∈(label::Label, lh::LabelHierarchy)
+function ∈(label::HLabel, lh::LabelHierarchy)
     return _contains(lh, label)
 end
 
-function ∋(lh::LabelHierarchy, label::Label)
+function ∋(lh::LabelHierarchy, label::HLabel)
     return _contains(lh, label)
 end
 
-function ∉(label::Label, lh::LabelHierarchy)
+function ∉(label::HLabel, lh::LabelHierarchy)
     return !_contains(lh, label)
 end
 
-function _get_nodeid(lh::LabelHierarchy, label::Label)
+function _get_nodeid(lh::LabelHierarchy, label::HLabel)
     if length(_hierarchy(lh)) == 0
         error("There is no label in LabelHierarchy. ")
     end
@@ -146,7 +164,7 @@ function _labels(lh::LabelHierarchy)
 end
 
 # TODO: ここだけ見てすべての場合について挙動がわかるようにする
-function _has_relation(lh::LabelHierarchy, label1::Label, label2::Label)
+function _has_relation(lh::LabelHierarchy, label1::HLabel, label2::HLabel)
     if !(_contains(lh, label1) && _contains(lh, label2))
         error("labels not found in LabelHierarchy. ")Label_Occupied
     end
@@ -154,7 +172,7 @@ function _has_relation(lh::LabelHierarchy, label1::Label, label2::Label)
 end
 
 # ここでinsertionを定義するのは複雑なのでdatatypesのほうがよさそう
-function _add_label!(lh::LabelHierarchy, label::Label)
+function _add_label!(lh::LabelHierarchy, label::HLabel)
     mg = _hierarchy(lh)
 
     if _contains(lh, label)
@@ -171,7 +189,7 @@ function _add_label!(lh::LabelHierarchy, label::Label)
     return Success
 end
 
-function _add_relation!(lh::LabelHierarchy; super::Label, sub::Label)
+function _add_relation!(lh::LabelHierarchy; super::HLabel, sub::HLabel)
     if !_contains(lh, super) || !_contains(lh, sub)
         return Label_Missing
     elseif super == sub
@@ -188,8 +206,8 @@ function _add_relation!(lh::LabelHierarchy; super::Label, sub::Label)
     return Success
 end
 
-function _remove_label!(lh::LabelHierarchy, label::Label)
-    @assert label != No_Label
+function _remove_label!(lh::LabelHierarchy, label::HLabel)
+    #@assert label != No_Label
     mg = _hierarchy(lh)
     n = _get_nodeid(lh, label)
     result = rem_vertex!(mg, n)
@@ -198,7 +216,7 @@ function _remove_label!(lh::LabelHierarchy, label::Label)
     return result
 end
 
-function _remove_relation!(lh::LabelHierarchy, label1::Label, label2::Label)
+function _remove_relation!(lh::LabelHierarchy, label1::HLabel, label2::HLabel)
     mg = _hierarchy(lh)
     n1 = _get_nodeid(lh, label1)
     n2 = _get_nodeid(lh, label2)
@@ -216,33 +234,33 @@ function _sub_id(lh::LabelHierarchy, id::Integer)
     return inneighbors(_hierarchy(lh), id)
 end
 
-function _super_id(lh::LabelHierarchy, label::Label)
-    @assert label != No_Label
+function _super_id(lh::LabelHierarchy, label::HLabel)
+    #@assert label != No_Label
     id = _get_nodeid(lh, label)
     return outneighbors(_hierarchy(lh), id)
 end
 
-function _sub_id(lh::LabelHierarchy, label::Label)
-    @assert label != No_Label
+function _sub_id(lh::LabelHierarchy, label::HLabel)
+    #@assert label != No_Label
     id = _get_nodeid(lh, label)
     return inneighbors(_hierarchy(lh), id)
 end
 
-function _super(lh::LabelHierarchy, label::Label)
+function _super(lh::LabelHierarchy, label::HLabel)
     super_ids = _super_id(lh, label)
     [_get_label(lh, i) for i in super_ids]
 end
 
-function _sub(lh::LabelHierarchy, label::Label)
+function _sub(lh::LabelHierarchy, label::HLabel)
     sub_ids = _sub_id(lh, label)
     [_get_label(lh, i) for i in sub_ids]
 end
 
-function _issuper(lh::LabelHierarchy, lhs::Label, rhs::Label)
+function _issuper(lh::LabelHierarchy, lhs::HLabel, rhs::HLabel)
     _get_nodeid(lh, lhs) ∈ _super_id(lh, rhs)
 end
 
-function _issub(lh::LabelHierarchy, lhs::Label, rhs::Label)
+function _issub(lh::LabelHierarchy, lhs::HLabel, rhs::HLabel)
     _get_nodeid(lh, lhs) ∈ _sub_id(lh, rhs)
 end
 
@@ -264,17 +282,22 @@ function ==(lhs::LabelHierarchy, rhs::LabelHierarchy)
     return _label2node(lhs) |> length == _label2node(rhs) |> length
 end
 
-function _root(lh::LabelHierarchy)
+function _root_id(lh::LabelHierarchy)
     mg = _hierarchy(lh)
-    root_id = filter(i -> isempty(_super_id(lh, i)), nv(mg))
+    root_id = filter(i -> isempty(_super_id(lh, i)), 1:nv(mg))
 
-    @assert length(result_id) == 1
+    @assert length(root_id) == 1
     return root_id[1]
+end
+
+function _root(lh::LabelHierarchy)
+    i = _root_id(lh)
+    return _get_label(lh, i)
 end
 
 # treeではないのでDFSは使えない
 function _depth(lh::LabelHierarchy)
-    sub_ids = _sub_id(lh, root(lh))
+    sub_ids = _sub_id(lh, _root_id(lh))
     depth = 0
     while !isempty(sub_ids)
         depth += 1

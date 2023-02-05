@@ -11,6 +11,7 @@ using LinearAlgebra
 using MetaGraphs
 using MLStyle
 using PeriodicTable
+using SimpleWeightedGraphs
 using StaticArrays
 
 import Base: getindex
@@ -23,18 +24,19 @@ include("HierarchyLabels/HierarchyLabels.jl")
 
 using  .HierarchyLabels
 
-export Position, BoundingBox, AbstractSystem, System, Label, LabelHierarchy
+export Position, BoundingBox, AbstractSystem, System, HLabel, LabelHierarchy
 export time, set_time!, natom, topology, box, set_box!
-export all_element, element, set_element!
+export all_elements, element, set_element!
 export all_positions, position, set_position!
 export hierarchy_names, hierarchy, add_hierarchy!, remove_hierarchy!, merge_hierarchy!
 export prop_names, props, prop, labels_in_prop, add_prop!, set_prop!
 export labels, add_label!, add_relation!, insert_relation!, remove_label!, remove_relation!
 export Id, Category, Entire_System
+export id, type, ==
 
 export contains, has_relation, issuper, issub, super, sub, print_to_string
 
-const Entire_System = Label(1, "entire_system")
+const Entire_System = HLabel("entire_system", 1)
 
 #####
 ##### Type `Position` definition
@@ -116,11 +118,11 @@ end
 ##### Type `System` definition
 #####
 
-abstract type AbstractSystem end
+abstract type AbstractSystem{D, F<:AbstractFloat} end
 
-mutable struct System{D, F<:AbstractFloat} <: AbstractSystem
+mutable struct System{D, F<:AbstractFloat} <: AbstractSystem{D, F}
     time::F
-    topology::Graph{<:Integer}
+    topology::SimpleWeightedGraph{<:Integer, <:Rational}
     box::BoundingBox{D, F}
 
     # atom property
@@ -128,7 +130,7 @@ mutable struct System{D, F<:AbstractFloat} <: AbstractSystem
     element::Vector{Category{Element}}
 
     hierarchy::Dict{<:AbstractString, LabelHierarchy}
-    props::Dict{<:AbstractString, Dict{Label, Any}}
+    props::Dict{<:AbstractString, Dict{HLabel, Any}}
 end
 
 include("property.jl")
@@ -136,13 +138,22 @@ include("property.jl")
 function System{D, F}() where {D, F<:AbstractFloat}
     System{D, F}(
         zero(F),
-        SimpleGraph{Int64}(),
+        SimpleWeightedGraph{Int64, Rational{Int8}}(),
         BoundingBox{D, F}(),
         Position{D, F}(),
         Vector{Category{Element}}(undef, 0),
         Dict{String, LabelHierarchy}(),
-        Dict{String, Dict{Label, Any}}()
+        Dict{String, Dict{HLabel, Any}}()
     )
+end
+
+function Base.show(io::IO, ::MIME"text/plain", s::AbstractSystem{D, F}) where {D, F}
+    "System{$D, $F}
+        time: $(time(s))
+        bbox: $(box(s))
+        natoms: $(natom(s))
+        hierarchy: $(hierarchy_names(s))
+    " |> println
 end
 
 function natom(s::AbstractSystem)
@@ -169,7 +180,7 @@ function set_box!(s::AbstractSystem, box::BoundingBox)
     s.box = box
 end
 
-function all_element(s::AbstractSystem)
+function all_elements(s::AbstractSystem)
     s.element
 end
 
@@ -239,7 +250,7 @@ function labels(s::AbstractSystem, hname::AbstractString)
     return _labels(lh)
 end
 
-function add_label!(s::AbstractSystem, hname::AbstractString, label::Label)
+function add_label!(s::AbstractSystem, hname::AbstractString, label::HLabel)
     lh = hierarchy(s, hname)
 
     result = _add_label!(lh, label)
@@ -250,7 +261,7 @@ function add_label!(s::AbstractSystem, hname::AbstractString, label::Label)
     end
 end
 
-function add_relation!(s::AbstractSystem, hname::AbstractString; super::Label, sub::Label)
+function add_relation!(s::AbstractSystem, hname::AbstractString; super::HLabel, sub::HLabel)
     lh = hierarchy(s, hname)
 
     result = _add_relation!(lh; super=super, sub=sub)
@@ -263,7 +274,7 @@ function add_relation!(s::AbstractSystem, hname::AbstractString; super::Label, s
     end
 end
 
-function insert_relation!(s::AbstractSystem, hname::AbstractString, label::Label; super::Label, sub::Label)
+function insert_relation!(s::AbstractSystem, hname::AbstractString, label::HLabel; super::HLabel, sub::HLabel)
     lh = hierarchy(s, hname)
 
     add_label!(s, hname, label)
@@ -274,7 +285,7 @@ function insert_relation!(s::AbstractSystem, hname::AbstractString, label::Label
     return nothing
 end
 
-function remove_label!(s::AbstractSystem, hname::AbstractString, label::Label)
+function remove_label!(s::AbstractSystem, hname::AbstractString, label::HLabel)
     lh = hierarchy(s, hname)
 
     if !_contains!(lh, label)
@@ -285,7 +296,7 @@ function remove_label!(s::AbstractSystem, hname::AbstractString, label::Label)
     return nothing
 end
 
-function remove_relation!(s::AbstractSystem, hname::AbstractString; super::Label, sub::Label)
+function remove_relation!(s::AbstractSystem, hname::AbstractString; super::HLabel, sub::HLabel)
     lh = hierarchy(s, hname)
 
     if !_has_relation(lh, super, sub)
@@ -296,27 +307,27 @@ function remove_relation!(s::AbstractSystem, hname::AbstractString; super::Label
     return nothing
 end
 
-function contains(s::AbstractSystem, hname::AbstractString, label::Label)
+function contains(s::AbstractSystem, hname::AbstractString, label::HLabel)
     lh = hierarchy(s, hname)
     return _contains(lh, label)
 end
 
-function issuper(s::AbstractSystem, hname::AbstractString, label1::Label, label2::Label)
+function issuper(s::AbstractSystem, hname::AbstractString, label1::HLabel, label2::HLabel)
     lh = hierarchy(s, hname)
     return _issuper(lh, label1, label2)
 end
 
-function issub(s::AbstractSystem, hname::AbstractString, label1::Label, label2::Label)
+function issub(s::AbstractSystem, hname::AbstractString, label1::HLabel, label2::HLabel)
     lh = hierarchy(s, hname)
     return _issub(lh, label1, label2)
 end
 
-function super(s::AbstractSystem, hname::AbstractString, label::Label)
+function super(s::AbstractSystem, hname::AbstractString, label::HLabel)
     lh = hierarchy(s, hname)
     return _super(lh, label)
 end
 
-function sub(s::AbstractSystem, hname::AbstractString, label::Label)
+function sub(s::AbstractSystem, hname::AbstractString, label::HLabel)
     lh = hierarchy(s, hname)
     return _sub(lh, label)
 end
