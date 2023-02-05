@@ -30,7 +30,7 @@ export all_elements, element, set_element!
 export all_positions, position, set_position!
 export hierarchy_names, hierarchy, add_hierarchy!, remove_hierarchy!, merge_hierarchy!
 export prop_names, props, prop, labels_in_prop, add_prop!, set_prop!
-export labels, add_label!, add_relation!, insert_relation!, remove_label!, remove_relation!
+export labels, add_label!, count_label, add_relation!, insert_relation!, remove_label!, remove_relation!
 export Id, Category, Entire_System
 export id, type, ==
 
@@ -259,6 +259,24 @@ function add_label!(s::AbstractSystem, hname::AbstractString, label::HLabel)
         Success        => return nothing
         _              => error("fatal error")
     end
+end
+
+function add_label!(s::AbstractSystem, hname::AbstractString, label_type::Category{HLabel})
+    lh = hierarchy(s, hname)
+
+    n = count_label(s, hname, label_type)
+    result = _add_label!(lh, HLabel(label_type, n+1))
+    @match result begin
+        Label_Occupied => error("label $(label) already exists. ")
+        Success        => return nothing
+        _              => error("fatal error")
+    end
+end
+
+function count_label(s::AbstractSystem, hname::AbstractString, label_type::Category{HLabel})
+    lh = hierarchy(s, hname)
+    labels = _label2node(lh) |> keys
+    return count(l -> type(l)==label_type, labels)
 end
 
 function add_relation!(s::AbstractSystem, hname::AbstractString; super::HLabel, sub::HLabel)

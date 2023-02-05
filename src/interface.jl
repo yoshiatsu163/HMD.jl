@@ -13,6 +13,11 @@ function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::
     return nothing
 end
 
+function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::Category{Element}; super::HLabel)
+    add_atom!(s, x, string(elem); super=super)
+    return nothing
+end
+
 function add_bond!(s::AbstractSystem, atom_id1::Integer, atom_id2::Integer; bond_order::Rational=1//1)
     if !(0//1 <= bond_order <= 8//1)
         error("bond order must be in [0, 8] ")
@@ -48,6 +53,11 @@ end
 
 function is_atom(label::HLabel)
     return type(label) == Category{HLabel}("")
+end
+
+function neighbors(s::AbstractSystem, atom_id::Integer)
+    topo = topology(s)
+    return all_neighbors(topo, atom_id)
 end
 
 function l2a(s::AbstractSystem, hname::AbstractString, label::HLabel)
