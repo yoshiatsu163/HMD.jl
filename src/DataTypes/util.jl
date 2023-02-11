@@ -2,7 +2,7 @@
 ##### Id definition
 #####
 
-struct Id{T} <: Integer
+struct Id{T}
     id::Int64
 end
 
@@ -13,6 +13,9 @@ end
 function Base.convert(::Type{<:Integer}, i::Id)
     Int64(i.id)
 end
+
+Base.promote_rule(::Type{<:Integer}, ::Type{Id{<:Any}}) = Id
+#Base.promote_rule(::Type{Id}, ::Type{<:Integer}) = Id
 
 for op in [:(+), :(-), :(*), :(/)]
     @eval function $op(lhs::Id{T}, rhs::Id{T}) where {T}

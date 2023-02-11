@@ -91,6 +91,32 @@ end
     #   AbstractSystemの定義が必要
 #end
 
+# 同名の関数がDataTypesにあり
+function all_labels(s::AbstractSystem, hname::AbstractString, label_type::Category{HLabel})
+    labels = hierarchy(s, hname) |> DataTypes.HierarchyLabels._label2node |> keys |> collect
+
+    return filter!(label -> type(label)==label_type, labels)
+end
+
+function super_labels(s::AbstractSystem, hname::AbstractString, label::HLabel)
+    return _traverse_from(s, hname, label, super)
+end
+
+function sub_labels(s::AbstractSystem, hname::AbstractString, label::HLabel)
+    return _traverse_from(s, hname, label, sub)
+end
+
+function _traverse_from(s::AbstractSystem, hname::AbstractString, label::HLabel, func::Function)
+    labels = []
+
+    # func is either super or sub
+    for lbl in func(s, hname, label)
+        append!(labels, traverse_from(s, hname, lbl, func))
+    end
+
+    return labels
+end
+
 function hmdsave(name::AbstractString, s::AbstractSystem)
     jldsave(name; system=s)
     return nothing

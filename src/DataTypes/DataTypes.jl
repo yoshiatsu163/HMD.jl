@@ -17,6 +17,7 @@ using StaticArrays
 import Base: getindex
 import Base: >, <, >=, <=, +, -, *, /, ==, string, show, convert
 import Base: position, time, contains, show
+import Base: promote_rule, promote_type
 import MetaGraphs: set_prop!, props
 
 include("util.jl")
@@ -24,16 +25,18 @@ include("HierarchyLabels/HierarchyLabels.jl")
 
 using  .HierarchyLabels
 
+export id, type, ==, promote_rule, promote_type, position, time, contains, show
+export >, <, >=, <=, +, -, *, /, ==, string, show, convert, getindex, convert
+
+export AbstractSystemType, GeneralSystem
 export Position, BoundingBox, AbstractSystem, System, HLabel, LabelHierarchy
 export time, set_time!, natom, topology, box, set_box!
-export all_elements, element, set_element!
-export all_positions, position, set_position!
-export hierarchy_names, hierarchy, add_hierarchy!, remove_hierarchy!, merge_hierarchy!
+export all_elements, element, _add_element!, set_element!
+export all_positions, position, _add_position!, set_position!
+export hierarchy_names, hierarchy, add_hierarchy!, remove_hierarchy!
 export prop_names, props, prop, labels_in_prop, add_prop!, set_prop!
-export labels, add_label!, count_label, add_relation!, insert_relation!, remove_label!, remove_relation!
+export all_labels, add_label!, count_label, add_relation!, insert_relation!, remove_label!, remove_relation!
 export Id, Category, Entire_System
-export id, type, ==
-
 export contains, has_relation, issuper, issub, super, sub, print_to_string
 
 const Entire_System = HLabel("entire_system", 1)
@@ -119,8 +122,11 @@ end
 #####
 
 abstract type AbstractSystem{D, F<:AbstractFloat} end
+abstract type AbstractSystemType end
 
-mutable struct System{D, F<:AbstractFloat} <: AbstractSystem{D, F}
+struct GeneralSystem <: AbstractSystemType end
+
+mutable struct System{D, F<:AbstractFloat, SysType} <: AbstractSystem{D, F}
     time::F
     topology::SimpleWeightedGraph{<:Integer, <:Rational}
     box::BoundingBox{D, F}
@@ -135,8 +141,8 @@ end
 
 include("property.jl")
 
-function System{D, F}() where {D, F<:AbstractFloat}
-    System{D, F}(
+function System{D, F, SysType}() where {D, F<:AbstractFloat, SysType<:GeneralSystem}
+    System{D, F, SysType}(
         zero(F),
         SimpleWeightedGraph{Int64, Rational{Int8}}(),
         BoundingBox{D, F}(),
@@ -145,6 +151,10 @@ function System{D, F}() where {D, F<:AbstractFloat}
         Dict{String, LabelHierarchy}(),
         Dict{String, Dict{HLabel, Any}}()
     )
+end
+
+function System{D, F}() where {D, F<:AbstractFloat}
+    return System{D, F, GeneralSystem}()
 end
 
 function Base.show(io::IO, ::MIME"text/plain", s::AbstractSystem{D, F}) where {D, F}
@@ -156,8 +166,19 @@ function Base.show(io::IO, ::MIME"text/plain", s::AbstractSystem{D, F}) where {D
     " |> println
 end
 
+function Base.show(io::IO, ::MIME"text/plain", s::System{D, F, SysType}) where {D, F, SysType}
+    "System{$D, $F, $SysType}
+        time: $(time(s))
+        bbox: $(box(s))
+        natoms: $(natom(s))
+        hierarchy: $(hierarchy_names(s))
+    " |> println
+end
+
 function natom(s::AbstractSystem)
-    length(s.position)
+    natm = length(s.position)
+    @assert natm == length(s.element)
+    return length(s.position)
 end
 
 function time(s::AbstractSystem)
@@ -188,6 +209,14 @@ function element(s::AbstractSystem, atom_id::Integer)
     s.element[atom_id]
 end
 
+function _add_element!(s::AbstractSystem, ename::AbstractString)
+    _add_element!(s, Category{Element}(ename))
+end
+
+function _add_element!(s::AbstractSystem, ename::Category{Element})
+    push!(s.element, ename)
+end
+
 function set_element!(s::AbstractSystem, atom_id::Integer, ename::AbstractString)
     s.element[atom_id] = Category{Element}(ename)
 end
@@ -205,6 +234,10 @@ end
 
 function position(s::AbstractSystem, atom_id::Integer)
     s.position[atom_id]
+end
+
+function _add_position!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat})
+    push!(s.position, x)
 end
 
 function set_position!(s::AbstractSystem, atom_id::Integer, x::AbstractVector{<:AbstractFloat})
@@ -226,10 +259,6 @@ function hierarchy(s::AbstractSystem, hname::AbstractString)
     s.hierarchy[hname]
 end
 
-function merge_hierarchy!(s::AbstractSystem, hie1::Dict{<:AbstractString, LabelHierarchy}, hie2::Dict{<:AbstractString, LabelHierarchy})
-    s.hierarchy = merge(hie1, hie2)
-end
-
 function add_hierarchy!(s::AbstractSystem, hname::AbstractString)
     if hname in hierarchy_names(s)
         error("hierarchy $(hname) already exists. ")
@@ -245,7 +274,7 @@ function remove_hierarchy!(s::AbstractSystem, hname::AbstractString)
     delete!(s.hierarchy, hname)
 end
 
-function labels(s::AbstractSystem, hname::AbstractString)
+function all_labels(s::AbstractSystem, hname::AbstractString)
     lh = hierarchy(s, hname)
     return _labels(lh)
 end
@@ -265,10 +294,11 @@ function add_label!(s::AbstractSystem, hname::AbstractString, label_type::Catego
     lh = hierarchy(s, hname)
 
     n = count_label(s, hname, label_type)
-    result = _add_label!(lh, HLabel(label_type, n+1))
+    addend = HLabel(label_type, n+1)
+    result = _add_label!(lh, addend)
     @match result begin
         Label_Occupied => error("label $(label) already exists. ")
-        Success        => return nothing
+        Success        => return addend
         _              => error("fatal error")
     end
 end

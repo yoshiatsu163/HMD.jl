@@ -33,6 +33,10 @@ function HLabel(type::AbstractString, id::Integer)
     HLabel(Category{HLabel}(type), Id{HLabel}(id))
 end
 
+function HLabel(type::Category{HLabel}, id::Integer)
+    HLabel(type, Id{HLabel}(id))
+end
+
 #const No_Label = HLabel(typemin(Int64), "No_Label")
 
 #@enum LabelResult Label_Missing=1 Label_Occupied=2 Label_Duplication=3 Relation_Missing=4 Relation_Occupied=5 Success=6
@@ -248,12 +252,20 @@ end
 
 function _super(lh::LabelHierarchy, label::HLabel)
     super_ids = _super_id(lh, label)
-    [_get_label(lh, i) for i in super_ids]
+    if isempty(super_ids)
+        return Vector{HLabel}(undef, 0)
+    else
+        return [_get_label(lh, i) for i in super_ids]
+    end
 end
 
 function _sub(lh::LabelHierarchy, label::HLabel)
     sub_ids = _sub_id(lh, label)
-    [_get_label(lh, i) for i in sub_ids]
+    if isempty(sub_ids)
+        return Vector{HLabel}(undef, 0)
+    else
+        return [_get_label(lh, i) for i in sub_ids]
+    end
 end
 
 function _issuper(lh::LabelHierarchy, lhs::HLabel, rhs::HLabel)
