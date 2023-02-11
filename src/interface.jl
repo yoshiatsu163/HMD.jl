@@ -41,7 +41,7 @@ function valence(s::AbstractSystem, atom_id::Integer)
     topo = topology(s)
     valence = 0//1
     for neigh_id in all_neighbors(topo, atom_id)
-        valence += get_weight(topo, atom_id, neight_id)
+        valence += get_weight(topo, atom_id, neigh_id)
     end
 
     return valence
@@ -107,11 +107,15 @@ function sub_labels(s::AbstractSystem, hname::AbstractString, label::HLabel)
 end
 
 function _traverse_from(s::AbstractSystem, hname::AbstractString, label::HLabel, func::Function)
-    labels = []
+    labels = Vector{HLabel}(undef, 0)
 
     # func is either super or sub
-    for lbl in func(s, hname, label)
-        append!(labels, traverse_from(s, hname, lbl, func))
+    stack = [label]
+    while !isempty(stack)
+        current = popfirst!(stack)
+        next = func(s, hname, current)
+        prepend!(stack, next)
+        push!(labels, current)
     end
 
     return labels

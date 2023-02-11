@@ -1,5 +1,6 @@
 module HMD
 
+# TODO: atom_idの呼び出しとlabel呼び出しの混在を解消
 using Graphs
 using JLD2
 using LinearAlgebra
