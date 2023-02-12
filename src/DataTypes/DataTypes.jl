@@ -126,7 +126,7 @@ abstract type AbstractSystemType end
 
 struct GeneralSystem <: AbstractSystemType end
 
-mutable struct System{D, F<:AbstractFloat, SysType} <: AbstractSystem{D, F}
+mutable struct System{D, F<:AbstractFloat, SysType<:AbstractSystemType} <: AbstractSystem{D, F}
     time::F
     topology::SimpleWeightedGraph{<:Integer, <:Rational}
     box::BoundingBox{D, F}
@@ -141,7 +141,7 @@ end
 
 include("property.jl")
 
-function System{D, F, SysType}() where {D, F<:AbstractFloat, SysType<:GeneralSystem}
+function System{D, F, SysType}() where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     System{D, F, SysType}(
         zero(F),
         SimpleWeightedGraph{Int64, Rational{Int8}}(),
@@ -209,6 +209,15 @@ function element(s::AbstractSystem, atom_id::Integer)
     s.element[atom_id]
 end
 
+function element(s::AbstractSystem, label::HLabel)
+    if !is_atom(label)
+        error("label $label is not for atom. ")
+    end
+    s.element[atom_id]
+
+    return nothing
+end
+
 function _add_element!(s::AbstractSystem, ename::AbstractString)
     _add_element!(s, Category{Element}(ename))
 end
@@ -242,6 +251,15 @@ end
 
 function set_position!(s::AbstractSystem, atom_id::Integer, x::AbstractVector{<:AbstractFloat})
     s.position[atom_id] .= x
+end
+
+function set_position!(s::AbstractSystem, label::HLabel, x::AbstractVector{<:AbstractFloat})
+    if !is_atom(label)
+        error("label $label is not for atom. ")
+    end
+    set_position!(s, label, x)
+
+    return nothing
 end
 
 function set_position!(s::AbstractSystem, atom_ids::AbstractVector{<:Integer}, x::AbstractVector{<:AbstractVector{<:AbstractFloat}})

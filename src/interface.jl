@@ -28,6 +28,18 @@ function add_bond!(s::AbstractSystem, atom_id1::Integer, atom_id2::Integer; bond
     return nothing
 end
 
+function add_bond!(s::AbstractSystem, label1::HLabel, label2::HLabel; bond_order::Rational=1//1)
+    if !is_atom(label1) || !is_atom(label2)
+        error("label is not for atom. ")
+    end
+
+    atom_id1 = convert(Int64, id(label1))
+    atom_id2 = convert(Int64, id(label2))
+    add_bond!(s, atom_id1, atom_id2; bond_order=bond_order)
+
+    return nothing
+end
+
 function bond_order(s::AbstractSystem, atom_id1::Integer, atom_id2::Integer)
     topo = topology(s)
     if !has_edge(topo, atom_id1, atom_id2)
@@ -35,6 +47,16 @@ function bond_order(s::AbstractSystem, atom_id1::Integer, atom_id2::Integer)
     end
 
     return get_weight(topo, atom_id1, atom_id2)
+end
+
+function bond_order(s::AbstractSystem, label1::HLabel, label2::HLabel)
+    if !is_atom(label1) || !is_atom(label2)
+        error("label is not for atom. ")
+    end
+    atom_id1 = convert(Int64, id(label1))
+    atom_id2 = convert(Int64, id(label2))
+
+    return bond_order(s, atom_id1, atom_id2)
 end
 
 function valence(s::AbstractSystem, atom_id::Integer)
@@ -45,6 +67,14 @@ function valence(s::AbstractSystem, atom_id::Integer)
     end
 
     return valence
+end
+
+function valence(s::AbstractSystem, label::HLabel)
+    if !is_atom(label)
+        error("label $label is not for atom. ")
+    end
+
+    return valence(s, convert(Int64, id(label1)))
 end
 
 function atom_label(atom_id::Integer)
@@ -58,6 +88,15 @@ end
 function neighbors(s::AbstractSystem, atom_id::Integer)
     topo = topology(s)
     return all_neighbors(topo, atom_id)
+end
+
+function neighbors(s::AbstractSystem, label::HLabel)
+    if !is_atom(label)
+        error("label $label is not for atom. ")
+    end
+    topo = topology(s)
+
+    return all_neighbors(topo, convert(Int64, id(label1)))
 end
 
 function l2a(s::AbstractSystem, hname::AbstractString, label::HLabel)
@@ -119,6 +158,19 @@ function _traverse_from(s::AbstractSystem, hname::AbstractString, label::HLabel,
     end
 
     return labels
+end
+
+@inline function wrap(box::BoundingBox, x::AbstractVector{<:AbstractFloat})
+    wrapped = x .- box.origin
+
+    coeff = [cdot(wrapped, box.axis[:, i]) for i in 1:length(x)] # x = reduce(+, coeff[i] .* axis[:, i] for i in 1:length(x))
+    coeff .-= floor.(coeff)
+
+    for dim in 1:length(x)
+        wrapped .+= coeff[dim] .* box.axis[:, dim]
+    end
+
+    return box.origin .+ wrapped
 end
 
 function hmdsave(name::AbstractString, s::AbstractSystem)

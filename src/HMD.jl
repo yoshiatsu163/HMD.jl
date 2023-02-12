@@ -1,6 +1,5 @@
 module HMD
 
-# TODO: atom_idの呼び出しとlabel呼び出しの混在を解消
 using Graphs
 using JLD2
 using LinearAlgebra
@@ -31,7 +30,7 @@ export Id, Category, Entire_System
 export id, type, ==
 export contains, has_relation, issuper, issub, super, sub
 export hmdsave, hmdread
-export valence, bond_order, neighbors, all_labels, super_labels, sub_labels
+export valence, bond_order, neighbors, all_labels, super_labels, sub_labels, wrap
 
 include("DataTypes/DataTypes.jl")
 using .DataTypes
