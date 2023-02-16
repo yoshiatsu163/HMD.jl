@@ -1,9 +1,14 @@
+# openmm trajectoryもバックエンドにしたいのでDataTypesまわりの最小apiを決める必要がある
 const Entire_System = HLabel("entire_system", 1)
+
+function dimension(s::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
+    return D
+end
 
 function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::AbstractString; super::HLabel)
     atom_id = natom(s) + 1
-    push!(s.position, x)
-    push!(s.element , Category{Element}(elem))
+    _add_position!(s, x)
+    _add_element!(s, Category{Element}(elem))
     @assert add_vertex!(topology(s))
     for hname in hierarchy_names(s)
         add_label!(s, hname, atom_label(atom_id))
@@ -160,17 +165,47 @@ function _traverse_from(s::AbstractSystem, hname::AbstractString, label::HLabel,
     return labels
 end
 
-@inline function wrap(box::BoundingBox, x::AbstractVector{<:AbstractFloat})
-    wrapped = x .- box.origin
-
-    coeff = [cdot(wrapped, box.axis[:, i]) for i in 1:length(x)] # x = reduce(+, coeff[i] .* axis[:, i] for i in 1:length(x))
-    coeff .-= floor.(coeff)
-
-    for dim in 1:length(x)
-        wrapped .+= coeff[dim] .* box.axis[:, dim]
+function wrap!(s::AbstractSystem)
+    if wrapped(s)
+        return nothing
     end
 
-    return box.origin .+ wrapped
+    axis = box(s).axis
+    origin = box(s).origin
+    # x = c[1] .* axis[:,1] .+ c[2] .* axis[:,2] .+ ...
+    e_i_e_j = [dot(axis[:,i], axis[:,j]) for i in 1:dimension(s), j in 1:dimension(s)] |> Symmetric
+    for id in 1:natom(s)
+        x = position(s, id) .- origin
+        c = e_i_e_j \ [dot(x, axis[:,dim]) for dim in 1:dimension(s)]
+        n = trunc.(Int16, c)
+        digit = c .- n
+        println(n)
+        pos = mapreduce(dim -> digit[dim] .* axis[:,dim], .+, 1:dimension(s))
+        set_travel!(s, id, n)
+        set_position!(s, id, pos .+ origin)
+    end
+    _change_wrap!(s)
+
+    return nothing
+end
+
+function unwrap!(s::AbstractSystem)
+    if !wrapped(s)
+        return nothing
+    end
+
+    axis   = box(s).axis
+    origin = box(s).origin
+    for i in 1:natom(s)
+        x = position(s, i) .- origin
+        n = travel(s, i)
+        pos = x .+ mapreduce(dim -> n[dim] .* axis[:, dim], .+, 1:dimension(s))
+        set_position!(s, i, pos .+ origin)
+        set_travel!(s, i, zeros(Int16, 3))
+    end
+    _change_wrap!(s)
+
+    return nothing
 end
 
 function hmdsave(name::AbstractString, s::AbstractSystem)

@@ -30,9 +30,9 @@ export >, <, >=, <=, +, -, *, /, ==, string, show, convert, getindex, convert
 
 export AbstractSystemType, GeneralSystem
 export Position, BoundingBox, AbstractSystem, System, HLabel, LabelHierarchy
-export time, set_time!, natom, topology, box, set_box!
+export time, set_time!, natom, nbond, topology, box, set_box!, dimension
 export all_elements, element, _add_element!, set_element!
-export all_positions, position, _add_position!, set_position!
+export all_positions, position, _add_position!, set_position!, travel, set_travel!, wrapped, _change_wrap!
 export hierarchy_names, hierarchy, add_hierarchy!, remove_hierarchy!
 export prop_names, props, prop, labels_in_prop, add_prop!, set_prop!
 export all_labels, add_label!, count_label, add_relation!, insert_relation!, remove_label!, remove_relation!
@@ -133,6 +133,8 @@ mutable struct System{D, F<:AbstractFloat, SysType<:AbstractSystemType} <: Abstr
 
     # atom property
     position::Position{D, F}
+    travel::Vector{MVector{D, Int16}}
+    wrapped::Bool
     element::Vector{Category{Element}}
 
     hierarchy::Dict{<:AbstractString, LabelHierarchy}
@@ -147,6 +149,8 @@ function System{D, F, SysType}() where {D, F<:AbstractFloat, SysType<:AbstractSy
         SimpleWeightedGraph{Int64, Rational{Int8}}(),
         BoundingBox{D, F}(),
         Position{D, F}(),
+        Vector{MVector{D, Int16}}(undef, 0),
+        false,
         Vector{Category{Element}}(undef, 0),
         Dict{String, LabelHierarchy}(),
         Dict{String, Dict{HLabel, Any}}()
@@ -155,6 +159,10 @@ end
 
 function System{D, F}() where {D, F<:AbstractFloat}
     return System{D, F, GeneralSystem}()
+end
+
+function dimension(s::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
+    return D
 end
 
 function Base.show(io::IO, ::MIME"text/plain", s::AbstractSystem{D, F}) where {D, F}
@@ -179,6 +187,10 @@ function natom(s::AbstractSystem)
     natm = length(s.position)
     @assert natm == length(s.element)
     return length(s.position)
+end
+
+function nbond(s::AbstractSystem)
+    return topology(s) |> ne
 end
 
 function time(s::AbstractSystem)
@@ -247,6 +259,10 @@ end
 
 function _add_position!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat})
     push!(s.position, x)
+    if wrapped(s)
+        error("atom addition with wrapped coordinates is not supprted. ")
+    end
+    push!(s.travel, zeros(Int16, 3))
 end
 
 function set_position!(s::AbstractSystem, atom_id::Integer, x::AbstractVector{<:AbstractFloat})
@@ -260,6 +276,22 @@ function set_position!(s::AbstractSystem, label::HLabel, x::AbstractVector{<:Abs
     set_position!(s, label, x)
 
     return nothing
+end
+
+function travel(s::AbstractSystem, atom_id::Integer)
+    return s.travel[atom_id]
+end
+
+function set_travel!(s::AbstractSystem, atom_id::Integer, n::AbstractVector{<:Integer})
+    s.travel[atom_id] .= n
+end
+
+function wrapped(s::AbstractSystem)
+    s.wrapped
+end
+
+function _change_wrap!(s::AbstractSystem)
+    s.wrapped = !(s.wrapped)
 end
 
 function set_position!(s::AbstractSystem, atom_ids::AbstractVector{<:Integer}, x::AbstractVector{<:AbstractVector{<:AbstractFloat}})
