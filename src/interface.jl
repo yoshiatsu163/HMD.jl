@@ -177,11 +177,16 @@ function wrap!(s::AbstractSystem)
     for id in 1:natom(s)
         x = position(s, id) .- origin
         c = e_i_e_j \ [dot(x, axis[:,dim]) for dim in 1:dimension(s)]
-        n = trunc.(Int16, c)
-        digit = c .- n
-        println(n)
-        pos = mapreduce(dim -> digit[dim] .* axis[:,dim], .+, 1:dimension(s))
-        set_travel!(s, id, n)
+        travel = trunc.(Int16, c)
+        set_travel!(s, id, travel)
+        digit = c .- travel
+        pos = map(1:dimension(s)) do dim
+            if digit[dim] >= 0
+                digit[dim] .* axis[:,dim]
+            else
+                (digit[dim] + 1) .* axis[:,dim]
+            end
+        end |> p-> reduce(.+, p)
         set_position!(s, id, pos .+ origin)
     end
     _change_wrap!(s)
