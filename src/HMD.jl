@@ -30,7 +30,7 @@ export Id, Category, Entire_System
 export id, type, ==
 export contains, has_relation, issuper, issub, super, sub
 export hmdsave, hmdread
-export dimension, valence, bond_order, neighbors, all_labels, super_labels, sub_labels, wrap
+export dimension, valence, bond_order, neighbors, all_labels, super_labels, sub_labels, wrap, atom_mass
 
 include("DataTypes/DataTypes.jl")
 using .DataTypes

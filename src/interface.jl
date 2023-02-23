@@ -1,6 +1,17 @@
 # openmm trajectoryもバックエンドにしたいのでDataTypesまわりの最小apiを決める必要がある
 const Entire_System = HLabel("entire_system", 1)
 
+const atom_mass = Dict{String, Float64}(
+    elements[:H ].symbol => 1.008,
+    elements[:C ].symbol => 12.012,
+    elements[:N ].symbol => 14.007,
+    elements[:O ].symbol => 16.000,
+    elements[:F ].symbol => 19.000,
+    elements[:Si].symbol => 28.086,
+    elements[:S ].symbol => 32.067,
+    elements[:Cl].symbol => 35.453
+)
+
 function dimension(s::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
     return D
 end
