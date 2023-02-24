@@ -188,15 +188,16 @@ function wrap!(s::AbstractSystem)
     for id in 1:natom(s)
         x = position(s, id) .- origin
         c = e_i_e_j \ [dot(x, axis[:,dim]) for dim in 1:dimension(s)]
-        travel = trunc.(Int16, c)
+        travel = floor.(Int16, c) #trunc.(Int16, c)
         set_travel!(s, id, travel)
         digit = c .- travel
         pos = map(1:dimension(s)) do dim
-            if digit[dim] >= 0
-                digit[dim] .* axis[:,dim]
-            else
-                (digit[dim] + 1) .* axis[:,dim]
-            end
+            #if digit[dim] >= 0
+            #    digit[dim] .* axis[:,dim]
+            #else
+            #    (digit[dim] + 1) .* axis[:,dim]
+            #end
+            digit[dim] .* axis[:,dim]
         end |> p-> reduce(.+, p)
         set_position!(s, id, pos .+ origin)
     end
