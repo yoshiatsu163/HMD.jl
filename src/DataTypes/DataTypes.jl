@@ -6,6 +6,7 @@
 
 module DataTypes
 
+using DataStructures
 using Graphs
 using LinearAlgebra
 using MetaGraphs
@@ -25,19 +26,33 @@ include("HierarchyLabels/HierarchyLabels.jl")
 
 using  .HierarchyLabels
 
-export id, type, ==, promote_rule, promote_type, position, time, contains, show
+# core subtype signature
+export Position, BoundingBox, HLabel, LabelHierarchy, Id, Category
 export >, <, >=, <=, +, -, *, /, ==, string, show, convert, getindex, convert
+export id, type, ==, promote_rule, promote_type
 
-export AbstractSystemType, GeneralSystem
-export Position, BoundingBox, AbstractSystem, System, HLabel, LabelHierarchy
-export time, set_time!, natom, nbond, topology, box, set_box!, dimension
-export all_elements, element, _add_element!, set_element!
-export all_positions, position, _add_position!, set_position!, travel, set_travel!, wrapped, _change_wrap!
-export hierarchy_names, hierarchy, add_hierarchy!, remove_hierarchy!
-export prop_names, props, prop, labels_in_prop, add_prop!, set_prop!
-export all_labels, add_label!, count_label, add_relation!, insert_relation!, remove_label!, remove_relation!
-export Id, Category, Entire_System
-export contains, has_relation, issuper, issub, super, sub, print_to_string
+# core immut signature
+export AbstractSystemType, GeneralSystem, AbstractSystem, System
+export contains
+export all_elements, element
+export time, natom, nbond, topology, box, dimension, show
+export all_positions, position, travel, wrapped
+export hierarchy_names, hierarchy
+export all_labels, count_label, has_relation, issuper, issub, super, sub, print_to_string
+export prop_names, props, prop, labels_in_prop
+
+# core mut signature
+export set_time!, set_box!
+export _add_element!, set_element!, _add_position!, set_position!, set_travel!, _change_wrap!
+export add_hierarchy!, remove_hierarchy!
+export add_prop!, set_prop!
+export add_label!, add_relation!, insert_relation!, remove_label!, remove_relation!
+
+# trajectory specific signature
+export time_series
+
+#constants 
+export Entire_System
 
 const Entire_System = HLabel("entire_system", 1)
 
