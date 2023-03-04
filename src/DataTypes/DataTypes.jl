@@ -15,10 +15,11 @@ using PeriodicTable
 using SimpleWeightedGraphs
 using StaticArrays
 
-import Base: getindex
+import Base: getindex, setproperty!, iterate, length
 import Base: >, <, >=, <=, +, -, *, /, ==, string, show, convert
 import Base: position, time, contains, show
 import Base: promote_rule, promote_type
+import Base: ∈, ∉
 import MetaGraphs: set_prop!, props
 
 include("util.jl")
@@ -51,7 +52,7 @@ export add_label!, add_relation!, insert_relation!, remove_label!, remove_relati
 # trajectory specific signature
 export time_series
 
-#constants 
+#constants
 export Entire_System
 
 const Entire_System = HLabel("entire_system", 1)
@@ -157,6 +158,7 @@ mutable struct System{D, F<:AbstractFloat, SysType<:AbstractSystemType} <: Abstr
 end
 
 include("property.jl")
+include("trajectory.jl")
 
 function System{D, F, SysType}() where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     System{D, F, SysType}(

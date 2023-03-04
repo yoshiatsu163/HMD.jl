@@ -9,14 +9,14 @@ using SimpleWeightedGraphs
 using StaticArrays
 using Unitful
 
-import Base: getindex
+import Base: getindex, setproperty!, iterate
 import Base: >, <, >=, <=, +, -, *, /, ==, string, show
 import Base: position, time, contains, show, promote_type, promote_rule
 import MetaGraphs: set_prop!, props
 import Graphs: neighbors
 
 export id, type, ==, promote_rule, promote_type, position, time, contains, show
-export >, <, >=, <=, +, -, *, /, ==, string, show, convert, getindex, convert
+export >, <, >=, <=, +, -, *, /, ==, string, show, convert, getindex, convert, setproperty!, iterate
 
 export AbstractSystemType, GeneralSystem
 export Position, BoundingBox, AbstractSystem, System, HLabel, LabelHierarchy
@@ -32,11 +32,14 @@ export contains, has_relation, issuper, issub, super, sub
 export hmdsave, hmdread
 export dimension, valence, bond_order, neighbors, all_labels, super_labels, sub_labels, wrap, atom_mass
 
+export Trajectory, change_points, latest_changepoint, get_timestep, add!
+export setproperty!, iterate, getindex, length
+
 include("DataTypes/DataTypes.jl")
 using .DataTypes
 include("interface.jl")
 
-include("GenericIO/GenericIO.jl")
-using .GenericIO
+#include("GenericIO/GenericIO.jl")
+#using .GenericIO
 
 end
