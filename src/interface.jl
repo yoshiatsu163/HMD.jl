@@ -34,6 +34,29 @@ function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::
     return nothing
 end
 
+function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:AbstractFloat}}, elem::AbstractVector{<:AbstractString}; super::HLabel)
+    if length(elem) != length(x)
+        error("length of elem and x must be same. ")
+    end
+
+    front = natom(s) + 1
+    back = natom(s) + length(x)
+    atom_labels = atom_label.(front:back)
+    for i in 1:length(x)
+        _add_position!(s, x[i])
+        _add_element!(s, Category{Element}(elem[i]))
+    end
+    @assert add_vertices!(topology(s), length(x))
+    for hname in hierarchy_names(s)
+        add_labels!(s, hname, atom_label.(front:back))
+        add_relations!(s, hname; super=super, subs=atom_labels)
+    end
+end
+
+function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:AbstractFloat}}, elem::AbstractVector{Category{Element}}; super::HLabel)
+    return add_atoms!(s, x, string.(elem); super=super)
+end
+
 function add_bond!(s::AbstractSystem, atom_id1::Integer, atom_id2::Integer; bond_order::Rational=1//1)
     if !(0//1 <= bond_order <= 8//1)
         error("bond order must be in [0, 8] ")
@@ -42,6 +65,18 @@ function add_bond!(s::AbstractSystem, atom_id1::Integer, atom_id2::Integer; bond
     @assert add_edge!(topo, atom_id1, atom_id2, bond_order)
 
     return nothing
+end
+
+#function add_bonds!(s::AbstractSystem, pair::AbstractVector{Tuple{<:Integer, <:Integer, Rational{<:Integer}}})
+function add_bonds!(s::AbstractSystem, pair)
+    if any(p -> !(0//1 <= p[3] <= 8//1), pair)
+        error("bond order must be in [0, 8] ")
+    end
+
+    topo = topology(s)
+    for (atom_id1, atom_id2, bond_order) in pair
+        @assert add_edge!(topo, atom_id1, atom_id2, bond_order)
+    end
 end
 
 function add_bond!(s::AbstractSystem, label1::HLabel, label2::HLabel; bond_order::Rational=1//1)

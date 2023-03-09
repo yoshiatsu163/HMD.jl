@@ -56,3 +56,7 @@ end
 function ==(lhs::Category, rhs::Category)
     string(lhs) == string(rhs)
 end
+
+function Base.length(category::Category)
+    return length(string(category))
+end

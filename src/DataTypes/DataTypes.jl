@@ -30,7 +30,7 @@ using  .HierarchyLabels
 # core subtype signature
 export Position, BoundingBox, HLabel, LabelHierarchy, Id, Category
 export >, <, >=, <=, +, -, *, /, ==, string, show, convert, getindex, convert
-export id, type, ==, promote_rule, promote_type
+export id, type, ==, promote_rule, promote_type, length
 
 # core immut signature
 export AbstractSystemType, GeneralSystem, AbstractSystem, System
@@ -47,10 +47,9 @@ export set_time!, set_box!
 export _add_element!, set_element!, _add_position!, set_position!, set_travel!, _change_wrap!
 export add_hierarchy!, remove_hierarchy!
 export add_prop!, set_prop!
-export add_label!, add_relation!, insert_relation!, remove_label!, remove_relation!
+export add_label!, add_labels!, add_relation!, insert_relation!, add_relations!, remove_label!, remove_relation!
 
 # trajectory specific signature
-export time_series
 
 #constants
 export Entire_System
@@ -370,6 +369,14 @@ function add_label!(s::AbstractSystem, hname::AbstractString, label_type::Catego
     end
 end
 
+function add_labels!(s::AbstractSystem, hname::AbstractString, label_types::AbstractVector{<:HLabel})
+    lh = hierarchy(s, hname)
+
+    _add_labels!(lh, label_types)
+
+    return nothing
+end
+
 function count_label(s::AbstractSystem, hname::AbstractString, label_type::Category{HLabel})
     lh = hierarchy(s, hname)
     labels = _label2node(lh) |> keys
@@ -387,6 +394,15 @@ function add_relation!(s::AbstractSystem, hname::AbstractString; super::HLabel, 
         success           => return nothing
         _                 => error("fatal error")
     end
+end
+
+function add_relations!(s::AbstractSystem, hname::AbstractString; super::HLabel, subs::AbstractVector{HLabel})
+    lh = hierarchy(s, hname)
+    for sub in subs
+        _add_relation!(lh; super=super, sub=sub, unsafe=true)
+    end
+
+    return nothing
 end
 
 function insert_relation!(s::AbstractSystem, hname::AbstractString, label::HLabel; super::HLabel, sub::HLabel)

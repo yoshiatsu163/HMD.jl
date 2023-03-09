@@ -1,4 +1,6 @@
-export Trajectory, change_points, latest_changepoint, get_timestep, add!
+export AbstractTrajectory, Immutable, Trajectory
+export all_times, all_timesteps, get_timestep, timestep2time, timestep2index, change_points
+export latest_changepoint, add!, update_reader!
 export setproperty!, iterate, getindex, length
 
 abstract type AbstractTrajectory{D, F<:AbstractFloat} end
@@ -73,13 +75,10 @@ function add!(traj::Trajectory{D, F, SysType}, s::System{D, F, SysType}, timeste
         push!(traj.systems, deepcopy(s))
         push!(traj.change_points, length(traj.systems))
     else
-        replica = System{D, F, SysType}()
-        set_time!(replica, time(s))
-        set_box!(replica, box(s))
-        replica.position = all_positions(s)
-        replica.element = all_elements(s)
-        replica.travel = s.travel
-        replica.wrapped = s.wrapped
+        replica = deepcopy(s)
+        empty!(replica.topology)
+        empty!(replica.hierarchy)
+        empty!(replica.elements)
         push!(traj.systems, replica)
     end
 end
@@ -118,7 +117,7 @@ function Base.getindex(traj::AbstractTrajectory{D, F}, index::Integer) where {D,
         set_time!(replica, time(current))
         set_box!(replica, deepcopy(box(current)))
         replica.position = all_positions(current) |> deepcopy
-        replica.travel = travel(current) |> deepcopy
+        replica.travel = deepcopy(current.travel)
         replica.props = deepcopy(current.props)
         return replica
     end
@@ -165,6 +164,29 @@ function Base.iterate(traj::AbstractTrajectory{D, F}, state::Tuple{System{D, F, 
     else
         return nothing
     end
+end
+
+function wrap!(traj::AbstractTrajectory)
+    for s in traj.systems
+        wrap!(s)
+    end
+
+    return nothing
+end
+
+function unwrap!(traj::AbstractTrajectory)
+    for s in traj.systems
+        unwrap!(s)
+    end
+
+    return nothing
+end
+
+function wrapped(traj::AbstractTrajectory)
+    is_wrapped = wrapped(traj.systems[1])
+    @assert all(s -> wrapped(s)==is_wrapped, traj.systems)
+
+    return is_wrapped
 end
 # getindex?
 #function slice(traj::AbstractTrajectory, index::Integer)

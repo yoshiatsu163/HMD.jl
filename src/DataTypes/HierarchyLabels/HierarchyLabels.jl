@@ -16,7 +16,7 @@ import Base: show
 export HLabel, LabelHierarchy
 export LabelResult, Label_Missing, Label_Occupied, Label_Duplication, Relation_Missing, Relation_Occupied, Success
 export id, type, ==
-export _add_label!, _add_relation!, _remove_label!, _remove_relation!
+export _add_label!, _add_labels!, _add_relation!, _remove_label!, _remove_relation!
 export _label2node, _contains, ∈, ∋, ∉, _has_relation ,_get_nodeid, getindex
 export _issuper, _issub, _super_id, _sub_id, _super, _sub
 export _root, _depth
@@ -121,13 +121,6 @@ function update_l2n!(lh::LabelHierarchy)
 end
 
 function _contains(lh::LabelHierarchy, label::HLabel)
-    #println(label)
-    #println("\n")
-    #for p in _label2node(lh) |> pairs
-    #    println(p)
-    #end
-    #return label ∈ (_label2node(lh) |> keys |> collect)
-
     mg = _hierarchy(lh)
     for i in vertices(mg)
         label == get_prop(mg, i, :label) && return true
@@ -193,19 +186,37 @@ function _add_label!(lh::LabelHierarchy, label::HLabel)
     return Success
 end
 
-function _add_relation!(lh::LabelHierarchy; super::HLabel, sub::HLabel)
-    if !_contains(lh, super) || !_contains(lh, sub)
-        return Label_Missing
-    elseif super == sub
-        return Label_Duplication
-    elseif _has_relation(lh, super, sub)
-        return Relation_Occupied
+function _add_labels!(lh::LabelHierarchy, labels::AbstractVector{HLabel})
+    mg = _hierarchy(lh)
+
+    front = nv(mg) + 1
+    back  = front + length(labels)
+    @assert add_vertices!(mg, length(labels)) == length(labels)
+    for (i, label) in zip(front:back, labels)
+        @assert set_prop!(mg, i, :label, label)
+    end
+    merge!(_label2node(lh), Dict(label => node_id for (label, node_id) in zip(labels, front:back)))
+
+    return Success
+end
+
+function _add_relation!(lh::LabelHierarchy; super::HLabel, sub::HLabel, unsafe::Bool=false)
+    if !unsafe
+        if !_contains(lh, super) || !_contains(lh, sub)
+            return Label_Missing
+        elseif super == sub
+            return Label_Duplication
+        elseif _has_relation(lh, super, sub)
+            return Relation_Occupied
+        end
     end
 
     mg, super_id, sub_id = _hierarchy(lh), _get_nodeid(lh, super), _get_nodeid(lh, sub)
     @assert add_edge!(mg, sub_id, super_id)
 
-    @assert !is_cyclic(mg)
+    if !unsafe
+        @assert !is_cyclic(mg)
+    end
 
     return Success
 end
