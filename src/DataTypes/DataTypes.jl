@@ -80,6 +80,13 @@ function Position{D, F}(n::Integer) where {D, F}
     Position(D, F, n)
 end
 
+function Position{D, F}(x::Matrix{F}) where {D, F}
+    if size(x, 1) != D
+        error("Dimension mismatch")
+    end
+    return [MVector{D, F}(x[:, i]) for i in 1:size(x, 2)]
+end
+
 function Position()
     Position(3, Float64, 0)
 end

@@ -1,7 +1,7 @@
 module HierarchyLabels
 
 using Graphs
-using MetaGraphs
+#using MetaGraphs
 using MLStyle
 
 using ..DataTypes: Id, Category
@@ -79,8 +79,10 @@ function Base.print_to_string(label::HLabel)
     return "HLabel(\"$t\", $i)"
 end
 
+#metaGraphは過剰 -> 軽量化   1. test書き換え 2. metagraph変更
 Base.@kwdef mutable struct LabelHierarchy
-    mg::MetaDiGraph = MetaDiGraph()
+    g::DiGraph = DiGraph()
+    labels::Vector{HLabel} = Vector{HLabel}()
     label2node::Dict{HLabel, Int64} = Dict{HLabel, Int64}()
 end
 
@@ -97,48 +99,15 @@ function Base.show(io::IO, ::MIME"text/plain", lh::LabelHierarchy)
 end
 
 function _hierarchy(lh::LabelHierarchy)
-    return lh.mg
+    return lh.g
 end
 
 function _label2node(lh::LabelHierarchy)
     return lh.label2node
 end
 
-function update_l2n!(lh::LabelHierarchy)
-    mg = _hierarchy(lh)
-    l2n = _label2node(lh)
-    labels = [props(mg, i)[:label] for i in vertices(mg)]
-
-    @assert allunique(labels)
-    @assert !is_cyclic(mg)
-
-    for (node, label) in zip(vertices(mg), labels)
-        @assert label ∈ keys(l2n)
-        l2n[label] = node
-    end
-
-    return nothing
-end
-
-function _contains(lh::LabelHierarchy, label::HLabel)
-    mg = _hierarchy(lh)
-    for i in vertices(mg)
-        label == get_prop(mg, i, :label) && return true
-    end
-
-    return false
-end
-
-function ∈(label::HLabel, lh::LabelHierarchy)
-    return _contains(lh, label)
-end
-
-function ∋(lh::LabelHierarchy, label::HLabel)
-    return _contains(lh, label)
-end
-
-function ∉(label::HLabel, lh::LabelHierarchy)
-    return !_contains(lh, label)
+function _labels(lh::LabelHierarchy)
+    return lh.labels
 end
 
 function _get_nodeid(lh::LabelHierarchy, label::HLabel)
@@ -152,50 +121,38 @@ function _get_label(lh::LabelHierarchy, id::Integer)
     if length(_hierarchy(lh)) == 0
         error("There is no label in LabelHierarchy. ")
     end
-    return get_prop(_hierarchy(lh), id, :label)
+    return _labels(lh)[id]
 end
 
-function _labels(lh::LabelHierarchy)
-    @assert nv(_hierarchy(lh)) == _label2node(lh) |> length
-    return [_get_label(lh, i) for i in 1:nv(_hierarchy(lh))]
+function _set_label!(lh::LabelHierarchy, label::HLabel, id::Integer)
+    _labels(lh)[id] = label
+    _label2node(lh)[label] = id
 end
 
-# TODO: ここだけ見てすべての場合について挙動がわかるようにする
-function _has_relation(lh::LabelHierarchy, label1::HLabel, label2::HLabel)
-    if !(_contains(lh, label1) && _contains(lh, label2))
-        error("labels not found in LabelHierarchy. ")Label_Occupied
-    end
-    return _issuper(lh, label1, label2) || _issub(lh, label1, label2)
-end
-
-# ここでinsertionを定義するのは複雑なのでdatatypesのほうがよさそう
 function _add_label!(lh::LabelHierarchy, label::HLabel)
-    mg = _hierarchy(lh)
+    g = _hierarchy(lh)
 
     if _contains(lh, label)
         return Label_Occupied
     end
 
-    @assert add_vertex!(mg)
-    current_id = nv(mg)
-    set_prop!(mg, current_id, :label, label)
-    push!(_label2node(lh), label => current_id)
+    @assert add_vertex!(g)
+    current_id = nv(g)
+    push!(_labels(lh), label)
+    merge!(_label2node(lh), Dict(label => current_id))
 
-    @assert !is_cyclic(mg)
+    @assert !is_cyclic(g)
 
     return Success
 end
 
 function _add_labels!(lh::LabelHierarchy, labels::AbstractVector{HLabel})
-    mg = _hierarchy(lh)
+    g = _hierarchy(lh)
 
-    front = nv(mg) + 1
-    back  = front + length(labels)
-    @assert add_vertices!(mg, length(labels)) == length(labels)
-    for (i, label) in zip(front:back, labels)
-        @assert set_prop!(mg, i, :label, label)
-    end
-    merge!(_label2node(lh), Dict(label => node_id for (label, node_id) in zip(labels, front:back)))
+    new_range = (nv(g) + one(nv(g))) : (nv(g) + length(labels))
+    @assert add_vertices!(g, length(labels)) == length(labels)
+    append!(lh.labels, labels)
+    merge!(_label2node(lh), Dict(label => node_id for (label, node_id) in zip(labels, new_range)))
 
     return Success
 end
@@ -211,34 +168,66 @@ function _add_relation!(lh::LabelHierarchy; super::HLabel, sub::HLabel, unsafe::
         end
     end
 
-    mg, super_id, sub_id = _hierarchy(lh), _get_nodeid(lh, super), _get_nodeid(lh, sub)
-    @assert add_edge!(mg, sub_id, super_id)
+    g, super_id, sub_id = _hierarchy(lh), _get_nodeid(lh, super), _get_nodeid(lh, sub)
+    @assert add_edge!(g, sub_id, super_id)
 
     if !unsafe
-        @assert !is_cyclic(mg)
+        @assert !is_cyclic(g)
     end
 
     return Success
 end
 
 function _remove_label!(lh::LabelHierarchy, label::HLabel)
-    #@assert label != No_Label
-    mg = _hierarchy(lh)
-    n = _get_nodeid(lh, label)
-    result = rem_vertex!(mg, n)
+    if !_contains(lh, label)
+        error("LabelHierarchy does not contain $label. ")
+    end
+    g, id = _hierarchy(lh), _get_nodeid(lh, label)
 
-    result && update_l2n!(lh)
-    return result
+    @assert rem_vertex!(g, id)
+    # when removing a vertex, the vertex id of the last vertex id is changed to keep vertex ids consecutive.
+    end_label = pop!(_labels(lh))
+    delete!(_label2node(lh), label)
+    _set_label!(lh, end_label, id)
+
+    return nothing
 end
 
 function _remove_relation!(lh::LabelHierarchy, label1::HLabel, label2::HLabel)
-    mg = _hierarchy(lh)
-    n1 = _get_nodeid(lh, label1)
-    n2 = _get_nodeid(lh, label2)
-    result = rem_edge!(mg, n1, n2) || rem_edge!(mg, n2, n1)
+    if !_contains(lh, label1) || !_contains(lh, label2)
+        error("LabelHierarchy does not contain $label1 or $label2. ")
+    end
 
-    result && update_l2n!(lh)
-    return result
+    g = _hierarchy(lh)
+    n1, n2 = _get_nodeid(lh, label1), _get_nodeid(lh, label2)
+
+    @assert has_edge(g, n2, n1)
+    @assert rem_edge!(g, n1, n2) || rem_edge!(g, n2, n1)
+
+    return nothing
+end
+
+function _contains(lh::LabelHierarchy, label::HLabel)
+    return haskey(_label2node(lh), label)
+end
+
+function ∈(label::HLabel, lh::LabelHierarchy)
+    return _contains(lh, label)
+end
+
+function ∋(lh::LabelHierarchy, label::HLabel)
+    return _contains(lh, label)
+end
+
+function ∉(label::HLabel, lh::LabelHierarchy)
+    return !_contains(lh, label)
+end
+
+function _has_relation(lh::LabelHierarchy, label1::HLabel, label2::HLabel)
+    if !(_contains(lh, label1) && _contains(lh, label2))
+        error("labels not found in LabelHierarchy. ")
+    end
+    return _issuper(lh, label1, label2) || _issub(lh, label1, label2)
 end
 
 function _super_id(lh::LabelHierarchy, id::Integer)
@@ -250,13 +239,11 @@ function _sub_id(lh::LabelHierarchy, id::Integer)
 end
 
 function _super_id(lh::LabelHierarchy, label::HLabel)
-    #@assert label != No_Label
     id = _get_nodeid(lh, label)
     return outneighbors(_hierarchy(lh), id)
 end
 
 function _sub_id(lh::LabelHierarchy, label::HLabel)
-    #@assert label != No_Label
     id = _get_nodeid(lh, label)
     return inneighbors(_hierarchy(lh), id)
 end
@@ -266,7 +253,7 @@ function _super(lh::LabelHierarchy, label::HLabel)
     if isempty(super_ids)
         return Vector{HLabel}(undef, 0)
     else
-        return [_get_label(lh, i) for i in super_ids]
+        return view(_labels(lh), super_ids)
     end
 end
 
@@ -275,39 +262,44 @@ function _sub(lh::LabelHierarchy, label::HLabel)
     if isempty(sub_ids)
         return Vector{HLabel}(undef, 0)
     else
-        return [_get_label(lh, i) for i in sub_ids]
+        return view(_labels(lh), sub_ids)
     end
 end
 
 function _issuper(lh::LabelHierarchy, lhs::HLabel, rhs::HLabel)
-    _get_nodeid(lh, lhs) ∈ _super_id(lh, rhs)
+    return _get_nodeid(lh, lhs) ∈ _super_id(lh, rhs)
 end
 
 function _issub(lh::LabelHierarchy, lhs::HLabel, rhs::HLabel)
-    _get_nodeid(lh, lhs) ∈ _sub_id(lh, rhs)
+    return _get_nodeid(lh, lhs) ∈ _sub_id(lh, rhs)
 end
 
 function ==(lhs::LabelHierarchy, rhs::LabelHierarchy)
-    # Check Hierarchy(lhs) == Hierarchy(rhs)
-    for lhs_label in _labels(lhs)
-        if !_contains(rhs, lhs_label)
-            return false
-        end
-        l_super = _super(lhs, lhs_label) |> Set
-        r_super = _super(rhs, lhs_label) |> Set
-        l_sub   = _super(lhs, lhs_label) |> Set
-        r_sub   = _super(rhs, lhs_label) |> Set
-        if !(l_super == r_super && l_sub == r_sub)
+    if _label2node(lhs) != _label2node(rhs)
+        return false
+    end
+
+    if Set(_labels(lhs)) != Set(_labels(rhs))
+        return false
+    end
+
+    lg, rg = _hierarchy(lhs), _hierarchy(rhs)
+    for lhs_id in vertices(lg)
+        lhs_label = _get_label(lhs, lhs_id)
+        super_labels = _super(lhs, lhs_label) |> Set
+        sub_labels = _sub(lhs, lhs_label) |> Set
+        rhs_label = _get_label(rhs, _get_nodeid(rhs, lhs_label))
+        if super_labels != Set(_super(rhs, rhs_label)) || sub_labels != Set(_sub(rhs, rhs_label))
             return false
         end
     end
 
-    return _label2node(lhs) |> length == _label2node(rhs) |> length
+    return true
 end
 
 function _root_id(lh::LabelHierarchy)
-    mg = _hierarchy(lh)
-    root_id = filter(i -> isempty(_super_id(lh, i)), 1:nv(mg))
+    g = _hierarchy(lh)
+    root_id = filter(i -> isempty(_super_id(lh, i)), 1:nv(g))
 
     @assert length(root_id) == 1
     return root_id[1]

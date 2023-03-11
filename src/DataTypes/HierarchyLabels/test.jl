@@ -2,19 +2,16 @@ using Test
 
 function test()
 
-@testset "HierarchyLabels" begin
-    l1, l2, l3 = Label(1, "l1"), Label(2, "l2"), Label(3, "l3")
-    noexist    = Label(-1, "not_exist_in_h")
+@testset "HierarchyHLabels" begin
+    l1, l2, l3 = HLabel("l1", 1), HLabel("l2", 2), HLabel("l3", 3)
+    noexist    = HLabel("not_exist_in_h", -1)
     handmade = begin
         lh = LabelHierarchy()
-        @assert add_vertex!(_hierarchy(lh)); set_prop!(_hierarchy(lh), 1, :label, l1)
-        @assert add_vertex!(_hierarchy(lh)); set_prop!(_hierarchy(lh), 2, :label, l2)
-        @assert add_vertex!(_hierarchy(lh)); set_prop!(_hierarchy(lh), 3, :label, l3)
+        @assert add_vertex!(_hierarchy(lh)); push!(lh.labels, l1); push!(lh.label2node, l1 => 1)
+        @assert add_vertex!(_hierarchy(lh)); push!(lh.labels, l2); push!(lh.label2node, l1 => 2)
+        @assert add_vertex!(_hierarchy(lh)); push!(lh.labels, l3); push!(lh.label2node, l1 => 3)
         add_edge!(_hierarchy(lh), 2, 1)
         add_edge!(_hierarchy(lh), 3, 2)
-        _label2node(lh)[l1] = 1
-        _label2node(lh)[l2] = 2
-        _label2node(lh)[l3] = 3
         lh
     end
 
@@ -50,21 +47,30 @@ function test()
     @test_throws KeyError _get_nodeid(addrel1, noexist)
     @test_throws ErrorException _has_relation(addrel1, noexist, l2)
     @test_throws ErrorException _get_label(LabelHierarchy(), 0)
-    @test_throws KeyError _get_label(addrel1, -1)
+    @test_throws BoundsError _get_label(addrel1, -1)
 
     @test _add_label!(addrel1, l1) == Label_Occupied
     @test _add_relation!(addrel1; super=noexist, sub=l3) == Label_Missing
     @test _add_relation!(addrel1; super=l3, sub=l3)      == Label_Duplication
     @test _add_relation!(addrel1; super=l2, sub=l3)      == Relation_Occupied
 
+    addrel1 = begin
+        lh = LabelHierarchy()
+        _add_label!(lh, l1)
+        _add_label!(lh, l2)
+        _add_label!(lh, l3)
+        _add_relation!(lh; super = l1, sub = l2)
+        _add_relation!(lh; super = l2, sub = l3)
+        lh
+    end
     lh = deepcopy(addrel1)
     @test lh == addrel1
-    @test_throws KeyError _remove_relation!(lh, noexist, l3)
-    @test_throws KeyError _remove_relation!(lh, l2, noexist)
+    @test_throws ErrorException _remove_relation!(lh, noexist, l3)
+    @test_throws ErrorException _remove_relation!(lh, l2, noexist)
     @test lh == addrel1
-    @test _remove_label!(lh, l1)
-    @test _remove_relation!(lh, l2, l3)
-    _remove_label!(lh, l1)
+    @test _remove_label!(lh, l1) == nothing
+    @test _remove_relation!(lh, l2, l3) == nothing
+    @test_throws ErrorException _remove_label!(lh, l1)
 end
 
 end #test

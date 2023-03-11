@@ -260,9 +260,45 @@ function unwrap!(s::AbstractSystem)
     return nothing
 end
 
-function hmdsave(name::AbstractString, s::AbstractSystem)
-    jldsave(name; system=s)
-    return nothing
+
+# serialieにはデータ型内の情報が必要になるがinterfaceではデータ型の内部情報を利用しないことにしているので
+# ここにserializeの情報を書くのは望ましくない．
+# TODO: 各型のserialize方法を考える
+#
+import JLD2: writeas, wconvert, rconvert
+struct SerializedPosition{F<:AbstractFloat}
+    pos::Matrix{F}
+end
+
+function wconvert(::Type{SerializedPosition}, position::Position{D, F}) where {D, F<:AbstractFloat}
+    return SerializedPosition([pos[dim][atom_id] for dim in 1:D, atom_id in 1:length(pos)])
+end
+
+function rconvert(::Type{SerializedPosition{F}}, sposition::SerializedPosition) where {F<:AbstractFloat}
+    return Position{size(sposition.pos, 1), F}(sposition.pos)
+end
+
+function hmdsave(name::AbstractString, s::AbstractTrajectory; compress=true)
+    jldopen(name, "w"; compress=compress) do file
+        file["time"] = time(s)
+        file["box"] = box(s)
+        file["position"] = position(s)
+        file["travel"] = travel(s)
+    end
+end
+
+function hmdsave(name::AbstractString, s::AbstractTrajectory; compress=true, mode::AbstractString)
+    #if mode == "time-wise"
+    #    jldopen(name, "w"; compress=compress) do file
+    #        file["box"] = s
+    #    end
+    #elseif mode == "mol-wise"
+    #    # TODO
+    #else
+    #    error("mode = {atom-wise|mol-wise}")
+    #end
+#
+    #return nothing
 end
 
 function hmdread(name::AbstractString)
