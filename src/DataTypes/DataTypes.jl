@@ -8,19 +8,21 @@ module DataTypes
 
 using DataStructures
 using Graphs
+using JLD2
 using LinearAlgebra
-using MetaGraphs
+#using MetaGraphs
 using MLStyle
 using PeriodicTable
 using SimpleWeightedGraphs
 using StaticArrays
 
-import Base: getindex, setproperty!, iterate, length
+import Base: getindex, setproperty!, iterate, length, precision
 import Base: >, <, >=, <=, +, -, *, /, ==, string, show, convert
-import Base: position, time, contains, show
+import Base: position, time, contains
 import Base: promote_rule, promote_type
 import Base: ∈, ∉
-import MetaGraphs: set_prop!, props
+#import MetaGraphs: set_prop!, props
+import JLD2: rconvert, wconvert
 
 include("util.jl")
 include("HierarchyLabels/HierarchyLabels.jl")
@@ -28,19 +30,20 @@ include("HierarchyLabels/HierarchyLabels.jl")
 using  .HierarchyLabels
 
 # core subtype signature
-export Position, BoundingBox, HLabel, LabelHierarchy, Id, Category
-export >, <, >=, <=, +, -, *, /, ==, string, show, convert, getindex, convert
+export Position, BoundingBox, HLabel, H_Label, LabelHierarchy, Id, Category, StaticString, name
+export >, <, >=, <=, +, -, *, /, ==, string, show, convert, getindex, convert, iterate
 export id, type, ==, promote_rule, promote_type, length
 
 # core immut signature
 export AbstractSystemType, GeneralSystem, AbstractSystem, System
 export contains
 export all_elements, element
-export time, natom, nbond, topology, box, dimension, show
-export all_positions, position, travel, wrapped
+export time, natom, nbond, topology, box, dimension, precision, show
+export all_positions, position, all_travels, travel, wrapped
 export hierarchy_names, hierarchy
 export all_labels, count_label, has_relation, issuper, issub, super, sub, print_to_string
 export prop_names, props, prop, labels_in_prop
+export PackedHierarchy, rconvert, wconvert, SerializedElement
 
 # core mut signature
 export set_time!, set_box!
@@ -188,6 +191,10 @@ function dimension(s::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
     return D
 end
 
+function precision(s::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
+    return F
+end
+
 function Base.show(io::IO, ::MIME"text/plain", s::AbstractSystem{D, F}) where {D, F}
     "System{$D, $F}
         time: $(time(s))
@@ -301,6 +308,10 @@ function set_position!(s::AbstractSystem, label::HLabel, x::AbstractVector{<:Abs
     return nothing
 end
 
+function all_travels(s::AbstractSystem)
+    return s.travel
+end
+
 function travel(s::AbstractSystem, atom_id::Integer)
     return s.travel[atom_id]
 end
@@ -325,7 +336,7 @@ function set_position!(s::AbstractSystem, atom_ids::AbstractVector{<:Integer}, x
 end
 
 function hierarchy_names(s::AbstractSystem)
-    s.hierarchy |> keys
+    s.hierarchy |> keys |> collect
 end
 
 function hierarchy(s::AbstractSystem, hname::AbstractString)
@@ -363,7 +374,7 @@ function add_label!(s::AbstractSystem, hname::AbstractString, label::HLabel)
     end
 end
 
-function add_label!(s::AbstractSystem, hname::AbstractString, label_type::Category{HLabel})
+function add_label!(s::AbstractSystem, hname::AbstractString, label_type::Category{H_Label})
     lh = hierarchy(s, hname)
 
     n = count_label(s, hname, label_type)
@@ -384,7 +395,7 @@ function add_labels!(s::AbstractSystem, hname::AbstractString, label_types::Abst
     return nothing
 end
 
-function count_label(s::AbstractSystem, hname::AbstractString, label_type::Category{HLabel})
+function count_label(s::AbstractSystem, hname::AbstractString, label_type::Category{H_Label})
     lh = hierarchy(s, hname)
     labels = _label2node(lh) |> keys
     return count(l -> type(l)==label_type, labels)
@@ -470,27 +481,56 @@ function sub(s::AbstractSystem, hname::AbstractString, label::HLabel)
     return _sub(lh, label)
 end
 
-include("test.jl")
+# data conversion for JLD2
 
-#function System(g::MetaGraph)
-#    D = props(g, 1)[:position] |> length
-#    F = props(g, 1)[:position] |> eltype
-#
-#    s = System()
-#    s.topology = SimpleGraph(g)
-#    s.box = BoundingBox()
-#    #s.elem = map(v -> props(g, v)[:element], vertices(g))
-#
-#    for v in vertices(g)
-#        #push!(s.position, MVector{D, F}(props(g, v)[:position]))
-#        add_atom!(s,
-#            connect = all_neighbors(g, v),
-#            pos  = props(g, v)[:position],
-#            type = 0,
-#            elem = props(g, v)[:elem])
-#    end
-#    s
-#end
+struct SerializedElement
+    chars::Vector{UInt8}
+    bounds::Vector{Int64}
+end
+
+function wconvert(::Type{SerializedElement}, elem::Vector{Category{Element}})
+    #return name.(elem)
+    chars = Vector{UInt8}(undef, 5*length(elem))
+    bounds = Vector{Int64}(undef, length(elem))
+    nchar = 1
+    for (i, e) in enumerate(elem)
+        bounds[i] = nchar
+        for c in name(e)
+            chars[nchar] = c
+            nchar += 1
+        end
+    end
+    resize!(chars, nchar-1)
+
+    return SerializedElement(chars, bounds)
+end
+
+function rconvert(::Type{Vector{Category{Element}}}, selem::SerializedElement)
+    #return [Category{Element}(e) for e in selem]
+    chars = selem.chars
+    bounds = selem.bounds
+    elem = [Category{Element}(StaticString("")) for i in 1:length(bounds)]
+    for i in 1:length(bounds)-1
+        s, f = bounds[i], bounds[i+1]-1
+        ename = Tuple(c for c in view(chars, s:f))
+        elem[i] = Category{Element}(ename)
+    end
+    ename = Tuple(c for c in view(chars, bounds[end-1]:length(chars)))
+    elem[end] = Category{Element}(ename)
+
+    return elem
+end
+
+function wconvert(::Type{Matrix{T}}, vec::Vector{MVector{D, T}}) where {D, T<:Real}
+    return [vec[atom_id][dim] for dim in 1:D, atom_id in eachindex(vec)]
+end
+
+function rconvert(::Type{Vector{MVector}}, mat::Matrix{T}) where {T<:Real}
+    D = size(mat, 1)
+    return [MVector{D, T}(mat[:, atom_id]) for atom_id in 1:size(mat, 2)]
+end
+
+include("test.jl")
 
 """
 box読み書き

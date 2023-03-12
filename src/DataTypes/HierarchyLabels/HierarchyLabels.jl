@@ -1,10 +1,10 @@
 module HierarchyLabels
 
 using Graphs
-#using MetaGraphs
 using MLStyle
+using JLD2
 
-using ..DataTypes: Id, Category
+using ..DataTypes: Id, Category, StaticString, name
 
 import Base: getindex
 import Base: ==
@@ -12,29 +12,38 @@ import Base: ∈
 import Base: ∋
 import Base: ∉
 import Base: show
+import JLD2: rconvert, wconvert
 
-export HLabel, LabelHierarchy
+export HLabel, H_Label, LabelHierarchy
 export LabelResult, Label_Missing, Label_Occupied, Label_Duplication, Relation_Missing, Relation_Occupied, Success
 export id, type, ==
 export _add_label!, _add_labels!, _add_relation!, _remove_label!, _remove_relation!
 export _label2node, _contains, ∈, ∋, ∉, _has_relation ,_get_nodeid, getindex
 export _issuper, _issub, _super_id, _sub_id, _super, _sub
 export _root, _depth
+export PackedHierarchy, rconvert, wconvert
 
 # AbstractLabel must define constructor s.t. ALabel(id::Integer, type)
 abstract type AbstractLabel end
 
+# work around for JLD2 behavior where recursing type parameter cause stack overflow
+struct H_Label end
+
 struct HLabel <: AbstractLabel
-    type::Category{HLabel}
-    id::Id{HLabel}
+    type::Category{H_Label}
+    id::Id{H_Label}
 end
 
 function HLabel(type::AbstractString, id::Integer)
-    HLabel(Category{HLabel}(type), Id{HLabel}(id))
+    HLabel(Category{H_Label}(type), Id{H_Label}(id))
 end
 
-function HLabel(type::Category{HLabel}, id::Integer)
-    HLabel(type, Id{HLabel}(id))
+function HLabel(type::Category{H_Label}, id::Integer)
+    HLabel(type, Id{H_Label}(id))
+end
+
+function HLabel(sstr::StaticString, id::Integer)
+    HLabel(Category{H_Label}(sstr), Id{H_Label}(id))
 end
 
 #const No_Label = HLabel(typemin(Int64), "No_Label")
@@ -63,23 +72,22 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", label::HLabel)
     i = convert(Int64, id(label))
-    t = type(label) |> string
+    t = type(label) |> name
     print(io, "HLabel(\"$t\", $i)")
 end
 
 function Base.show(label::HLabel)
     i = convert(Int64, id(label))
-    t = type(label) |> string
+    t = type(label) |> name
     print("HLabel(\"$t\", $i)")
 end
 
 function Base.print_to_string(label::HLabel)
     i = convert(Int64, id(label))
-    t = type(label) |> string
+    t = type(label) |> name
     return "HLabel(\"$t\", $i)"
 end
 
-#metaGraphは過剰 -> 軽量化   1. test書き換え 2. metagraph変更
 Base.@kwdef mutable struct LabelHierarchy
     g::DiGraph = DiGraph()
     labels::Vector{HLabel} = Vector{HLabel}()
@@ -323,7 +331,31 @@ function _depth(lh::LabelHierarchy)
     return depth - 1
 end
 
+struct PackedHierarchy
+    g::DiGraph
+    ids::Vector{Int64}
+    categories::Vector{StaticString}
+end
 
+function wconvert(::Type{PackedHierarchy}, lh::LabelHierarchy)
+    g = _hierarchy(lh)
+    ids = [id(label).id for label in _labels(lh)]
+    categories = [name(type(label)) for label in _labels(lh)]
+
+    return PackedHierarchy(g, ids, categories)
+end
+
+function rconvert(::Type{LabelHierarchy}, ph::PackedHierarchy)
+    g = ph.g
+    labels = [HLabel(label_cat, label_id) for (label_cat, label_id) in zip(ph.categories, ph.ids)]
+
+    lh = LabelHierarchy()
+    lh.labels = labels
+    lh.label2node = Dict(labels .=> 1:length(labels))
+    lh.g = g
+
+    return lh
+end
 
 include("test.jl")
 end #module

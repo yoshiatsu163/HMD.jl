@@ -1,4 +1,45 @@
 #####
+##### StaticString definition
+#####
+
+struct StaticString{N}
+    str::NTuple{N, UInt8}
+end
+
+function StaticString(str::AbstractString)
+    sstr = Tuple(UInt8(c) for c in str)
+    return StaticString{length(sstr)}(sstr)
+end
+
+function string(sstr::StaticString)
+    return Char.(sstr.str) |> join
+end
+
+function Base.show(io::IO, ::MIME"text/plain", sstr::StaticString)
+    print(io, "$(string(sstr))")
+end
+
+function Base.print_to_string(sstr::StaticString)
+    return "$(string(sstr))"
+end
+
+function *(lhs::StaticString, rhs::StaticString)
+    return StaticString(string(lhs) * string(rhs))
+end
+
+function Base.iterate(sstr::StaticString)
+    return sstr.str[1], 2
+end
+
+function Base.iterate(sstr::StaticString, state::Integer)
+    if state < length(sstr.str)
+        return sstr.str[state], state + 1
+    else
+        return nothing
+    end
+end
+
+#####
 ##### Id definition
 #####
 
@@ -45,18 +86,26 @@ end
 ##### Category definition
 #####
 
-struct Category{T}# <: AbstractString
-    str::String
+struct Category{T}
+    str::StaticString
 end
 
-function string(category::Category)
+function Category{T}(str::AbstractString) where {T}
+    return Category{T}(StaticString(str))
+end
+
+function Category{T}(vec::NTuple{N, UInt8}) where {N, T}
+    return Category{T}(StaticString(vec))
+end
+
+function name(category::Category)
     category.str
 end
 
 function ==(lhs::Category, rhs::Category)
-    string(lhs) == string(rhs)
+    name(lhs) == name(rhs)
 end
 
 function Base.length(category::Category)
-    return length(string(category))
+    return length(name(category))
 end

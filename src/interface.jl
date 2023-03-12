@@ -1,15 +1,15 @@
 # openmm trajectoryもバックエンドにしたいのでDataTypesまわりの最小apiを決める必要がある
 const Entire_System = HLabel("entire_system", 1)
 
-const atom_mass = Dict{String, Float64}(
-    elements[:H ].symbol => 1.008,
-    elements[:C ].symbol => 12.012,
-    elements[:N ].symbol => 14.007,
-    elements[:O ].symbol => 16.000,
-    elements[:F ].symbol => 19.000,
-    elements[:Si].symbol => 28.086,
-    elements[:S ].symbol => 32.067,
-    elements[:Cl].symbol => 35.453
+const atom_mass = Dict{StaticString, Float64}(
+    StaticString(elements[:H ].symbol) => 1.008,
+    StaticString(elements[:C ].symbol) => 12.012,
+    StaticString(elements[:N ].symbol) => 14.007,
+    StaticString(elements[:O ].symbol) => 16.000,
+    StaticString(elements[:F ].symbol) => 19.000,
+    StaticString(elements[:Si].symbol) => 28.086,
+    StaticString(elements[:S ].symbol) => 32.067,
+    StaticString(elements[:Cl].symbol) => 35.453
 )
 
 function dimension(s::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
@@ -17,9 +17,15 @@ function dimension(s::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
 end
 
 function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::AbstractString; super::HLabel)
+    add_atom!(s, x, elem; super=super)
+
+    return nothing
+end
+
+function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::Category{Element}; super::HLabel)
     atom_id = natom(s) + 1
     _add_position!(s, x)
-    _add_element!(s, Category{Element}(elem))
+    _add_element!(s, elem)
     @assert add_vertex!(topology(s))
     for hname in hierarchy_names(s)
         add_label!(s, hname, atom_label(atom_id))
@@ -29,12 +35,13 @@ function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::
     return nothing
 end
 
-function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::Category{Element}; super::HLabel)
-    add_atom!(s, x, string(elem); super=super)
+function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:AbstractFloat}}, elem::AbstractVector{<:AbstractString}; super::HLabel)
+    add_atoms!(s, x, Category{Element}.(elem); super=super)
+
     return nothing
 end
 
-function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:AbstractFloat}}, elem::AbstractVector{<:AbstractString}; super::HLabel)
+function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:AbstractFloat}}, elem::AbstractVector{Category{Element}}; super::HLabel)
     if length(elem) != length(x)
         error("length of elem and x must be same. ")
     end
@@ -44,17 +51,15 @@ function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:Abst
     atom_labels = atom_label.(front:back)
     for i in 1:length(x)
         _add_position!(s, x[i])
-        _add_element!(s, Category{Element}(elem[i]))
+        _add_element!(s, elem[i])
     end
     @assert add_vertices!(topology(s), length(x))
     for hname in hierarchy_names(s)
         add_labels!(s, hname, atom_label.(front:back))
         add_relations!(s, hname; super=super, subs=atom_labels)
     end
-end
 
-function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:AbstractFloat}}, elem::AbstractVector{Category{Element}}; super::HLabel)
-    return add_atoms!(s, x, string.(elem); super=super)
+    return nothing
 end
 
 function add_bond!(s::AbstractSystem, atom_id1::Integer, atom_id2::Integer; bond_order::Rational=1//1)
@@ -133,7 +138,7 @@ function atom_label(atom_id::Integer)
 end
 
 function is_atom(label::HLabel)
-    return type(label) == Category{HLabel}("")
+    return type(label) == Category{H_Label}("")
 end
 
 function neighbors(s::AbstractSystem, atom_id::Integer)
@@ -182,7 +187,7 @@ end
 #end
 
 # 同名の関数がDataTypesにあり
-function all_labels(s::AbstractSystem, hname::AbstractString, label_type::Category{HLabel})
+function all_labels(s::AbstractSystem, hname::AbstractString, label_type::Category{H_Label})
     labels = hierarchy(s, hname) |> DataTypes.HierarchyLabels._label2node |> keys |> collect
 
     return filter!(label -> type(label)==label_type, labels)
@@ -260,49 +265,42 @@ function unwrap!(s::AbstractSystem)
     return nothing
 end
 
-
-# serialieにはデータ型内の情報が必要になるがinterfaceではデータ型の内部情報を利用しないことにしているので
-# ここにserializeの情報を書くのは望ましくない．
-# TODO: 各型のserialize方法を考える
-#
-import JLD2: writeas, wconvert, rconvert
-struct SerializedPosition{F<:AbstractFloat}
-    pos::Matrix{F}
-end
-
-function wconvert(::Type{SerializedPosition}, position::Position{D, F}) where {D, F<:AbstractFloat}
-    return SerializedPosition([pos[dim][atom_id] for dim in 1:D, atom_id in 1:length(pos)])
-end
-
-function rconvert(::Type{SerializedPosition{F}}, sposition::SerializedPosition) where {F<:AbstractFloat}
-    return Position{size(sposition.pos, 1), F}(sposition.pos)
-end
-
-function hmdsave(name::AbstractString, s::AbstractTrajectory; compress=true)
+function hmdsave(name::AbstractString, s::AbstractSystem{D, F}; compress=true) where {D, F<:AbstractFloat}
     jldopen(name, "w"; compress=compress) do file
+        file["system_type"] = typeof(s)
         file["time"] = time(s)
         file["box"] = box(s)
-        file["position"] = position(s)
-        file["travel"] = travel(s)
+        file["position"] = wconvert(Matrix{F}, all_positions(s))
+        file["travel"] = wconvert(Matrix{Int16}, all_travels(s))
+        file["wrapped"] = wrapped(s)
+        file["element"] = wconvert(SerializedElement, all_elements(s))
+        file["hierarchy_names"] = hierarchy_names(s)
+        for hname in hierarchy_names(s)
+            file["hierarchy/$hname"] = wconvert(PackedHierarchy, hierarchy(s, hname))
+        end
+        # temporary
+        file["props"] = s.props
     end
-end
-
-function hmdsave(name::AbstractString, s::AbstractTrajectory; compress=true, mode::AbstractString)
-    #if mode == "time-wise"
-    #    jldopen(name, "w"; compress=compress) do file
-    #        file["box"] = s
-    #    end
-    #elseif mode == "mol-wise"
-    #    # TODO
-    #else
-    #    error("mode = {atom-wise|mol-wise}")
-    #end
-#
-    #return nothing
+    return nothing
 end
 
 function hmdread(name::AbstractString)
-    jldopen(name, "r+") do file
-        file["system"]
-    end |> return
+    return jldopen(name, "r") do file
+        system_type = file["system_type"]
+        s = system_type()
+        D, F = dimension(s), precision(s)
+
+        set_time!(s, file["time"])
+        set_box!(s, file["box"])
+        s.position = rconvert(Position{D, F}, file["position"])
+        s.travel = rconvert(Vector{MVector{D, Int16}}, file["travel"])
+        s.wrapped = file["wrapped"]
+        s.element = rconvert(Vector{Category{Element}}, file["element"])
+        for hname in file["hierarchy_names"]
+            add_hierarchy!(s, hname)
+            s.hierarchy[hname] = rconvert(LabelHierarchy, file["hierarchy/$hname"])
+        end
+        s.props = file["props"]
+        s
+    end
 end
