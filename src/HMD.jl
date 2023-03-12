@@ -1,9 +1,8 @@
 module HMD
 
 using Graphs
-using JLD2
+using HDF5
 using LinearAlgebra
-#using MetaGraphs
 using PeriodicTable
 using SimpleWeightedGraphs
 using StaticArrays
@@ -36,6 +35,8 @@ export AbstractTrajectory, Immutable, Trajectory
 export all_times, all_timesteps, get_timestep, timestep2time, timestep2index, change_points
 export latest_changepoint, add!, update_reader!
 export setproperty!, iterate, getindex, length
+
+export SerializedCategory, SerializedTopology, PackedHierarchy, serialize, deserialize
 
 include("DataTypes/DataTypes.jl")
 using .DataTypes

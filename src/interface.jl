@@ -265,42 +265,62 @@ function unwrap!(s::AbstractSystem)
     return nothing
 end
 
-function hmdsave(name::AbstractString, s::AbstractSystem{D, F}; compress=true) where {D, F<:AbstractFloat}
-    jldopen(name, "w"; compress=compress) do file
-        file["system_type"] = typeof(s)
+function hmdsave(name::AbstractString, s::AbstractSystem{D, F}; compress=false) where {D, F<:AbstractFloat}
+    if compress
+        println("warning: compression is not supported yet.")
+    end
+
+    h5open(name, "w") do file
+        # metadata as type D, F, Systype
         file["time"] = time(s)
-        file["box"] = box(s)
-        file["position"] = wconvert(Matrix{F}, all_positions(s))
-        file["travel"] = wconvert(Matrix{Int16}, all_travels(s))
+        file["position"] = serialize(all_positions(s))
+        file["travel"] = serialize(all_travels(s))
         file["wrapped"] = wrapped(s)
-        file["element"] = wconvert(SerializedElement, all_elements(s))
+
+        file["box/origin"] = Vector(box(s).origin)
+        file["box/axis"] = Matrix(box(s).axis)
+
+        selem = serialize(all_elements(s))
+        file["element/chars"]  = selem.chars
+        file["element/bounds"] = selem.bounds
+
+        stopo = serialize(topology(s))
+        for fname in fieldnames(SerializedTopology)
+            file["topology/$(fname)"] = getfield(stopo, fname)
+        end
+
         file["hierarchy_names"] = hierarchy_names(s)
         for hname in hierarchy_names(s)
-            file["hierarchy/$hname"] = wconvert(PackedHierarchy, hierarchy(s, hname))
+            ser_hierarchy = serialize(hierarchy(s, hname))
+            for fname in fieldnames(PackedHierarchy)
+                file["hierarchy/$hname/$(fname)"] = getfield(ser_hierarchy, fname)
+            end
         end
-        # temporary
-        file["props"] = s.props
+        ##temporary
+        #file["props"] = s.props
     end
+
     return nothing
 end
 
 function hmdread(name::AbstractString)
-    return jldopen(name, "r") do file
-        system_type = file["system_type"]
-        s = system_type()
-        D, F = dimension(s), precision(s)
-
-        set_time!(s, file["time"])
-        set_box!(s, file["box"])
-        s.position = rconvert(Position{D, F}, file["position"])
-        s.travel = rconvert(Vector{MVector{D, Int16}}, file["travel"])
-        s.wrapped = file["wrapped"]
-        s.element = rconvert(Vector{Category{Element}}, file["element"])
-        for hname in file["hierarchy_names"]
-            add_hierarchy!(s, hname)
-            s.hierarchy[hname] = rconvert(LabelHierarchy, file["hierarchy/$hname"])
-        end
-        s.props = file["props"]
-        s
-    end
+    #return jldopen(name, "r") do file
+    #    system_type = file["system_type"]
+    #    s = system_type()
+    #    D, F = dimension(s), precision(s)
+#
+    #    set_time!(s, file["time"])
+    #    set_box!(s, file["box"])
+    #    s.position = rconvert(Position{D, F}, file["position"])
+    #    s.travel = rconvert(Vector{MVector{D, Int16}}, file["travel"])
+    #    s.wrapped = file["wrapped"]
+    #    s.element = rconvert(Vector{Category{Element}}, file["element"])
+    #    s.topology = file["topology"]
+    #    for hname in file["hierarchy_names"]
+    #        add_hierarchy!(s, hname)
+    #        s.hierarchy[hname] = rconvert(LabelHierarchy, file["hierarchy/$hname"])
+    #    end
+    #    s.props = file["props"]
+    #    s
+    #end
 end

@@ -2,9 +2,9 @@ module HierarchyLabels
 
 using Graphs
 using MLStyle
-using JLD2
 
-using ..DataTypes: Id, Category, StaticString, name
+using ..DataTypes: Id, Category, StaticString, name, SerializedCategory
+import ..DataTypes: serialize, deserialize
 
 import Base: getindex
 import Base: ==
@@ -12,7 +12,6 @@ import Base: ∈
 import Base: ∋
 import Base: ∉
 import Base: show
-import JLD2: rconvert, wconvert
 
 export HLabel, H_Label, LabelHierarchy
 export LabelResult, Label_Missing, Label_Occupied, Label_Duplication, Relation_Missing, Relation_Occupied, Success
@@ -21,7 +20,7 @@ export _add_label!, _add_labels!, _add_relation!, _remove_label!, _remove_relati
 export _label2node, _contains, ∈, ∋, ∉, _has_relation ,_get_nodeid, getindex
 export _issuper, _issub, _super_id, _sub_id, _super, _sub
 export _root, _depth
-export PackedHierarchy, rconvert, wconvert
+export PackedHierarchy, serialize, deserialize
 
 # AbstractLabel must define constructor s.t. ALabel(id::Integer, type)
 abstract type AbstractLabel end
@@ -332,30 +331,56 @@ function _depth(lh::LabelHierarchy)
 end
 
 struct PackedHierarchy
-    g::DiGraph
-    ids::Vector{Int64}
-    categories::Vector{StaticString}
+    num_node::Int64
+    edges_org::Vector{Int64}
+    edges_dst::Vector{Int64}
+    label_ids::Vector{Int64}
+    # splitting Vector{Category}
+    chars::Vector{UInt8}
+    bounds::Vector{Int64}
 end
 
-function wconvert(::Type{PackedHierarchy}, lh::LabelHierarchy)
+function serialize(lh::LabelHierarchy)
     g = _hierarchy(lh)
-    ids = [id(label).id for label in _labels(lh)]
-    categories = [name(type(label)) for label in _labels(lh)]
+    label_ids = [id(label).id for label in _labels(lh)]
+    # 空ラベルの場合
+    categories = serialize([type(label) for label in _labels(lh)])
 
-    return PackedHierarchy(g, ids, categories)
+    num_node = nv(g)
+    edges_org, edges_dst = begin
+        orig, dest = Vector{Int64}(undef, ne(g)), Vector{Int64}(undef, ne(g))
+        for (i, edge) in enumerate(edges(g))
+            orig[i], dest[i] = src(edge), dst(edge)
+        end
+        orig, dest
+    end
+
+    return PackedHierarchy(num_node, edges_org, edges_dst, label_ids, categories.chars, categories.bounds)
 end
 
-function rconvert(::Type{LabelHierarchy}, ph::PackedHierarchy)
-    g = ph.g
-    labels = [HLabel(label_cat, label_id) for (label_cat, label_id) in zip(ph.categories, ph.ids)]
+function deserialize(ph::PackedHierarchy)
+    g = begin
+        g = DiGraph()
+        add_vertices!(g, ph.num_node)
+        for (o, d) in zip(ph.edges_org, ph.edges_dst)
+            add_edge!(g, o, d)
+        end
+        g
+    end
+
+    labels = begin
+        cats = deserialize(ph.categories)
+        [HLabel(c, id) for (c, id) in zip(cats, ph.label_ids)]
+    end
 
     lh = LabelHierarchy()
+    lh.g = g
     lh.labels = labels
     lh.label2node = Dict(labels .=> 1:length(labels))
-    lh.g = g
 
     return lh
 end
 
 include("test.jl")
+
 end #module

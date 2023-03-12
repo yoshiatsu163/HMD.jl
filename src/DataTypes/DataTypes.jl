@@ -8,9 +8,7 @@ module DataTypes
 
 using DataStructures
 using Graphs
-using JLD2
 using LinearAlgebra
-#using MetaGraphs
 using MLStyle
 using PeriodicTable
 using SimpleWeightedGraphs
@@ -22,7 +20,6 @@ import Base: position, time, contains
 import Base: promote_rule, promote_type
 import Base: ∈, ∉
 #import MetaGraphs: set_prop!, props
-import JLD2: rconvert, wconvert
 
 include("util.jl")
 include("HierarchyLabels/HierarchyLabels.jl")
@@ -53,6 +50,10 @@ export add_prop!, set_prop!
 export add_label!, add_labels!, add_relation!, insert_relation!, add_relations!, remove_label!, remove_relation!
 
 # trajectory specific signature
+
+
+# fileIO
+export SerializedCategory, SerializedTopology, PackedHierarchy, serialize, deserialize
 
 #constants
 export Entire_System
@@ -481,53 +482,49 @@ function sub(s::AbstractSystem, hname::AbstractString, label::HLabel)
     return _sub(lh, label)
 end
 
-# data conversion for JLD2
+# data conversion for HDF5
 
-struct SerializedElement
-    chars::Vector{UInt8}
-    bounds::Vector{Int64}
-end
-
-function wconvert(::Type{SerializedElement}, elem::Vector{Category{Element}})
-    #return name.(elem)
-    chars = Vector{UInt8}(undef, 5*length(elem))
-    bounds = Vector{Int64}(undef, length(elem))
-    nchar = 1
-    for (i, e) in enumerate(elem)
-        bounds[i] = nchar
-        for c in name(e)
-            chars[nchar] = c
-            nchar += 1
-        end
-    end
-    resize!(chars, nchar-1)
-
-    return SerializedElement(chars, bounds)
-end
-
-function rconvert(::Type{Vector{Category{Element}}}, selem::SerializedElement)
-    #return [Category{Element}(e) for e in selem]
-    chars = selem.chars
-    bounds = selem.bounds
-    elem = [Category{Element}(StaticString("")) for i in 1:length(bounds)]
-    for i in 1:length(bounds)-1
-        s, f = bounds[i], bounds[i+1]-1
-        ename = Tuple(c for c in view(chars, s:f))
-        elem[i] = Category{Element}(ename)
-    end
-    ename = Tuple(c for c in view(chars, bounds[end-1]:length(chars)))
-    elem[end] = Category{Element}(ename)
-
-    return elem
-end
-
-function wconvert(::Type{Matrix{T}}, vec::Vector{MVector{D, T}}) where {D, T<:Real}
+function serialize(vec::Vector{MVector{D, T}}) where {D, T<:Real}
     return [vec[atom_id][dim] for dim in 1:D, atom_id in eachindex(vec)]
 end
 
-function rconvert(::Type{Vector{MVector}}, mat::Matrix{T}) where {T<:Real}
+function deserialize(mat::Matrix{T}) where {T<:Real}
     D = size(mat, 1)
     return [MVector{D, T}(mat[:, atom_id]) for atom_id in 1:size(mat, 2)]
+end
+
+struct SerializedTopology
+    num_node::Int64
+    edges_org::Vector{Int64}
+    edges_dst::Vector{Int64}
+    denominator::Vector{Int16}
+    numerator::Vector{Int16}
+end
+
+function serialize(topo::SimpleWeightedGraph)
+    num_node = nv(topo)
+    edges_org = Vector{Int64}(undef, ne(topo))
+    edges_dst = Vector{Int64}(undef, ne(topo))
+    denominator = Vector{Int16}(undef, ne(topo))
+    numerator = Vector{Int16}(undef, ne(topo))
+
+    for (i, edge) in enumerate(edges(topo))
+        edges_org[i], edges_dst[i] = src(edge), dst(edge)
+        weight = get_weight(topo, edges_org[i], edges_dst[i])
+        denominator[i], numerator[i] = weight.den, weight.num
+    end
+
+    return SerializedTopology(num_node, edges_org, edges_dst, denominator, numerator)
+end
+
+function deserialize(ser_topo::SerializedTopology)
+    topo = SimpleWeightedDiGraph(ser_topo.num_node)
+    add_vertices!(topo, ser_topo.num_node)
+    for i in 1:length(ser_topo.edges_org)
+        add_edge!(topo, ser_topo.edges_org[i], ser_topo.edges_dst[i], Rational{Int16}(ser_topo.numerator[i], ser_topo.denominator[i]))
+    end
+
+    return topo
 end
 
 include("test.jl")

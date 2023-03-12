@@ -28,7 +28,11 @@ function *(lhs::StaticString, rhs::StaticString)
 end
 
 function Base.iterate(sstr::StaticString)
-    return sstr.str[1], 2
+    return if isempty(sstr.str)
+        nothing
+    else
+        sstr.str[1], 2
+    end
 end
 
 function Base.iterate(sstr::StaticString, state::Integer)
@@ -37,6 +41,10 @@ function Base.iterate(sstr::StaticString, state::Integer)
     else
         return nothing
     end
+end
+
+function Base.length(sstr::StaticString)
+    return length(sstr.str)
 end
 
 #####
@@ -108,4 +116,42 @@ end
 
 function Base.length(category::Category)
     return length(name(category))
+end
+
+struct SerializedCategory
+    chars::Vector{UInt8}
+    bounds::Vector{Int64}
+end
+
+# serialization for data storage
+
+function serialize(cats::Vector{Category{T}}) where {T}
+    len = sum(length(e) for e in cats)
+    chars = Vector{UInt8}(undef, len)
+    bounds = Vector{Int64}(undef, length(cats))
+    nchar = 1
+    for (i, e) in enumerate(cats)
+        bounds[i] = nchar
+        for c in name(e)
+            chars[nchar] = c
+            nchar += 1
+        end
+    end
+
+    return SerializedCategory(chars, bounds)
+end
+
+function deserialize(scats::SerializedCategory)
+    chars = scats.chars
+    bounds = scats.bounds
+    cats = [Category{Element}(StaticString("")) for i in 1:length(bounds)]
+    for i in 1:length(bounds)-1
+        s, f = bounds[i], bounds[i+1]-1
+        cname = Tuple(c for c in view(chars, s:f))
+        cats[i] = Category{Element}(cname)
+    end
+    cname = Tuple(c for c in view(chars, bounds[end-1]:length(chars)))
+    cats[end] = Category{Element}(cname)
+
+    return cats
 end

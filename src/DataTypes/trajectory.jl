@@ -188,6 +188,20 @@ function wrapped(traj::AbstractTrajectory)
 
     return is_wrapped
 end
+
+# use case
+function hmdsave(name::AbstractString, traj::AbstractTrajectory; compress=false)
+    #jldopen(name, "w"; compress=compress) do file
+    #    for (step, time, reader) in traj
+    #        file["step_$(step)"] = reader
+    #    end
+    #    file["system_type"] = typeof(traj)
+    #    file["step2time"] = traj.step2time
+    #    file["timesteps"] = traj.timesteps
+    #    filr["change_points"] = traj.change_points
+#
+    #end
+end
 # getindex?
 #function slice(traj::AbstractTrajectory, index::Integer)
 #
