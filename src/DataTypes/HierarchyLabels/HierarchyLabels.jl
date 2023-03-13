@@ -368,10 +368,14 @@ function deserialize(ph::PackedHierarchy)
         g
     end
 
-    labels = begin
-        cats = deserialize(ph.categories)
-        [HLabel(c, id) for (c, id) in zip(cats, ph.label_ids)]
+    label_ids = ph.label_ids
+    chars, bounds = ph.chars, ph.bounds
+    labels = map(1:length(label_ids)-1) do i
+        s, f = bounds[i], bounds[i+1]-1
+        sstr = view(chars, s:f)
+        HLabel(Category{H_Label}(sstr), label_ids[i])
     end
+    push!(labels, HLabel(Category{H_Label}(chars[bounds[end-1]:bounds[end]-1]), label_ids[end]))
 
     lh = LabelHierarchy()
     lh.g = g

@@ -19,7 +19,7 @@ export >, <, >=, <=, +, -, *, /, ==, string, show, convert, getindex, convert, s
 
 export AbstractSystemType, GeneralSystem
 export Position, BoundingBox, AbstractSystem, System, HLabel, H_Label, LabelHierarchy
-export time, set_time!, natom, nbond, topology, box, set_box!, dimension, precision, add_atom!, add_atoms!, add_bond!, add_bonds!, atom_label, l2a, is_atom
+export time, set_time!, natom, nbond, topology, box, set_box!, dimension, precision, system_type, add_atom!, add_atoms!, add_bond!, add_bonds!, atom_label, l2a, is_atom
 export all_elements, element, _add_element!, set_element!
 export all_positions, position, _add_position!, set_position!, all_travels, travel, set_travel!, wrapped, wrap!, unwrap!
 export hierarchy_names, hierarchy, add_hierarchy!, remove_hierarchy!, merge_hierarchy!
@@ -28,7 +28,7 @@ export labels, add_label!, add_labels!, count_label, add_relation!, add_relation
 export Id, Category, Entire_System
 export id, type, ==
 export contains, has_relation, issuper, issub, super, sub
-export hmdsave, hmdread
+export hmdsave, hmdread!
 export dimension, valence, bond_order, neighbors, all_labels, super_labels, sub_labels, wrap, atom_mass
 
 export AbstractTrajectory, Immutable, Trajectory

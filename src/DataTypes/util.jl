@@ -11,6 +11,10 @@ function StaticString(str::AbstractString)
     return StaticString{length(sstr)}(sstr)
 end
 
+function StaticString(vec::AbstractVector{UInt8})
+    return StaticString{length(vec)}(Tuple(vec))
+end
+
 function string(sstr::StaticString)
     return Char.(sstr.str) |> join
 end
@@ -106,6 +110,10 @@ function Category{T}(vec::NTuple{N, UInt8}) where {N, T}
     return Category{T}(StaticString(vec))
 end
 
+function Category{T}(vec::AbstractVector{UInt8}) where {T}
+    return Category{T}(StaticString(vec))
+end
+
 function name(category::Category)
     category.str
 end
@@ -141,17 +149,24 @@ function serialize(cats::Vector{Category{T}}) where {T}
     return SerializedCategory(chars, bounds)
 end
 
-function deserialize(scats::SerializedCategory)
+function deserialize(T::Type{<:Any}, scats::SerializedCategory)
     chars = scats.chars
     bounds = scats.bounds
-    cats = [Category{Element}(StaticString("")) for i in 1:length(bounds)]
-    for i in 1:length(bounds)-1
+    #cats = [Category{T}(StaticString("")) for i in 1:length(bounds)]
+    #for i in 1:length(bounds)-1
+    #    s, f = bounds[i], bounds[i+1]-1
+    #    cname = Tuple(c for c in view(chars, s:f))
+    #    cats[i] = Category{T}(cname)
+    #end
+    #cname = Tuple(c for c in view(chars, bounds[end-1]:length(chars)))
+    #cats[end] = Category{T}(cname)
+    cats = map(1:length(bounds)-1) do i
         s, f = bounds[i], bounds[i+1]-1
-        cname = Tuple(c for c in view(chars, s:f))
-        cats[i] = Category{Element}(cname)
+        #cname = Tuple(c[n] for n in s:f) # Tuple(c for c in view(chars, s:f))
+        Category{T}(view(chars, s:f))
+        #Category{T}(chars[s:f])
     end
-    cname = Tuple(c for c in view(chars, bounds[end-1]:length(chars)))
-    cats[end] = Category{Element}(cname)
+    push!(cats, Category{T}(chars[bounds[end-1]:bounds[end]-1]))
 
     return cats
 end

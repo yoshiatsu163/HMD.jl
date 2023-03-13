@@ -19,7 +19,6 @@ import Base: >, <, >=, <=, +, -, *, /, ==, string, show, convert
 import Base: position, time, contains
 import Base: promote_rule, promote_type
 import Base: ∈, ∉
-#import MetaGraphs: set_prop!, props
 
 include("util.jl")
 include("HierarchyLabels/HierarchyLabels.jl")
@@ -35,7 +34,7 @@ export id, type, ==, promote_rule, promote_type, length
 export AbstractSystemType, GeneralSystem, AbstractSystem, System
 export contains
 export all_elements, element
-export time, natom, nbond, topology, box, dimension, precision, show
+export time, natom, nbond, topology, box, dimension, precision, system_type, show
 export all_positions, position, all_travels, travel, wrapped
 export hierarchy_names, hierarchy
 export all_labels, count_label, has_relation, issuper, issub, super, sub, print_to_string
@@ -56,7 +55,7 @@ export add_label!, add_labels!, add_relation!, insert_relation!, add_relations!,
 export SerializedCategory, SerializedTopology, PackedHierarchy, serialize, deserialize
 
 #constants
-export Entire_System
+export Entire_System, BO_Prec
 
 const Entire_System = HLabel("entire_system", 1)
 
@@ -152,9 +151,11 @@ abstract type AbstractSystemType end
 
 struct GeneralSystem <: AbstractSystemType end
 
+const BO_Prec = Int8
+
 mutable struct System{D, F<:AbstractFloat, SysType<:AbstractSystemType} <: AbstractSystem{D, F}
     time::F
-    topology::SimpleWeightedGraph{<:Integer, <:Rational}
+    topology::SimpleWeightedGraph{<:Integer, Rational{BO_Prec}}
     box::BoundingBox{D, F}
 
     # atom property
@@ -173,7 +174,7 @@ include("trajectory.jl")
 function System{D, F, SysType}() where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     System{D, F, SysType}(
         zero(F),
-        SimpleWeightedGraph{Int64, Rational{Int8}}(),
+        SimpleWeightedGraph{Int64, Rational{BO_Prec}}(),
         BoundingBox{D, F}(),
         Position{D, F}(),
         Vector{MVector{D, Int16}}(undef, 0),
@@ -195,6 +196,11 @@ end
 function precision(s::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
     return F
 end
+
+function system_type(s::System{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    return SysType
+end
+
 
 function Base.show(io::IO, ::MIME"text/plain", s::AbstractSystem{D, F}) where {D, F}
     "System{$D, $F}
@@ -488,17 +494,21 @@ function serialize(vec::Vector{MVector{D, T}}) where {D, T<:Real}
     return [vec[atom_id][dim] for dim in 1:D, atom_id in eachindex(vec)]
 end
 
-function deserialize(mat::Matrix{T}) where {T<:Real}
-    D = size(mat, 1)
-    return [MVector{D, T}(mat[:, atom_id]) for atom_id in 1:size(mat, 2)]
+function deserialize(D::Integer, mat::Matrix{T}) where {T<:Real}
+    pos = [MVector(zero(T), zero(T), zero(T)) for _ in 1:size(mat, 2)] #Vector{MVector{D, T}}()
+    #for (dim, atom_id) in CartesianIndices(mat)
+    for atom_id in eachindex(pos), dim in 1:D
+        pos[atom_id][dim] = mat[dim, atom_id]
+    end
+    return pos
 end
 
 struct SerializedTopology
     num_node::Int64
     edges_org::Vector{Int64}
     edges_dst::Vector{Int64}
-    denominator::Vector{Int16}
-    numerator::Vector{Int16}
+    denominator::Vector{BO_Prec}
+    numerator::Vector{BO_Prec}
 end
 
 function serialize(topo::SimpleWeightedGraph)
@@ -518,10 +528,10 @@ function serialize(topo::SimpleWeightedGraph)
 end
 
 function deserialize(ser_topo::SerializedTopology)
-    topo = SimpleWeightedDiGraph(ser_topo.num_node)
+    topo = SimpleWeightedGraph{Int64, Rational{BO_Prec}}(ser_topo.num_node)
     add_vertices!(topo, ser_topo.num_node)
     for i in 1:length(ser_topo.edges_org)
-        add_edge!(topo, ser_topo.edges_org[i], ser_topo.edges_dst[i], Rational{Int16}(ser_topo.numerator[i], ser_topo.denominator[i]))
+        add_edge!(topo, ser_topo.edges_org[i], ser_topo.edges_dst[i], Rational{BO_Prec}(ser_topo.numerator[i], ser_topo.denominator[i]))
     end
 
     return topo

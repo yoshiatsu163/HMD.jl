@@ -271,7 +271,12 @@ function hmdsave(name::AbstractString, s::AbstractSystem{D, F}; compress=false) 
     end
 
     h5open(name, "w") do file
-        # metadata as type D, F, Systype
+        # metadata
+        file["dimension"] = dimension(s)
+        file["precision"] = precision(s) |> string
+        file["system_type"] = system_type(s) |> string
+
+        #data
         file["time"] = time(s)
         file["position"] = serialize(all_positions(s))
         file["travel"] = serialize(all_travels(s))
@@ -303,24 +308,41 @@ function hmdsave(name::AbstractString, s::AbstractSystem{D, F}; compress=false) 
     return nothing
 end
 
-function hmdread(name::AbstractString)
-    #return jldopen(name, "r") do file
-    #    system_type = file["system_type"]
-    #    s = system_type()
-    #    D, F = dimension(s), precision(s)
-#
-    #    set_time!(s, file["time"])
-    #    set_box!(s, file["box"])
-    #    s.position = rconvert(Position{D, F}, file["position"])
-    #    s.travel = rconvert(Vector{MVector{D, Int16}}, file["travel"])
-    #    s.wrapped = file["wrapped"]
-    #    s.element = rconvert(Vector{Category{Element}}, file["element"])
-    #    s.topology = file["topology"]
-    #    for hname in file["hierarchy_names"]
-    #        add_hierarchy!(s, hname)
-    #        s.hierarchy[hname] = rconvert(LabelHierarchy, file["hierarchy/$hname"])
-    #    end
-    #    s.props = file["props"]
-    #    s
-    #end
+function hmdread!(s::AbstractSystem{D, F}, name::AbstractString) where {D, F<:AbstractFloat}
+    return h5open(name, "r") do file
+        # metadata check
+        matched = begin
+            read(file, "dimension") == D &&
+            read(file, "precision") == string(F) &&
+            read(file, "system_type") == system_type(s) |> string
+        end
+        if !matched
+            error("metadata is not matched. ")
+        end
+
+        # data
+        set_time!(s, read(file, "time"))
+        set_box!(s, BoundingBox(read(file, "box/origin"), read(file, "box/axis")))
+        s.position = deserialize(D, read(file, "position"))
+        #s.travel = deserialize(read(file, "travel"))
+        #s.wrapped = read(file, "wrapped")
+        #s.element = deserialize(Element, SerializedCategory(read(file, "element/chars"), read(file, "element/bounds")))
+        #s.topology = SerializedTopology(read(file, "topology/num_node"),
+        #                                read(file, "topology/edges_org"),
+        #                                read(file, "topology/edges_dst"),
+        #                                read(file, "topology/denominator"),
+        #                                read(file, "topology/numerator")) |> deserialize
+        for hname in read(file, "hierarchy_names")
+            #add_hierarchy!(s, hname)
+            #ph = PackedHierarchy(read(file, "hierarchy/$hname/num_node"),
+            #                    read(file, "hierarchy/$hname/edges_org"),
+            #                    read(file, "hierarchy/$hname/edges_dst"),
+            #                    read(file, "hierarchy/$hname/label_ids"),
+            #                    read(file, "hierarchy/$hname/chars"),
+            #                    read(file, "hierarchy/$hname/bounds"))
+            #s.hierarchy[hname] = deserialize(ph)
+        end
+        #s.props = file["props"]
+        s
+    end
 end
