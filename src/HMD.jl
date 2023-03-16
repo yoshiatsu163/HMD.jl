@@ -14,7 +14,7 @@ import Base: position, time, contains, show, promote_type, promote_rule
 #import MetaGraphs: set_prop!, props
 import Graphs: neighbors
 
-export id, type, ==, promote_rule, promote_type, position, time, contains, show, name, StaticString
+export id, type, ==, promote_rule, promote_type, position, time, contains, show
 export >, <, >=, <=, +, -, *, /, ==, string, show, convert, getindex, convert, setproperty!, iterate
 
 export AbstractSystemType, GeneralSystem
@@ -36,7 +36,7 @@ export all_times, all_timesteps, get_timestep, timestep2time, timestep2index, ch
 export latest_changepoint, add!, update_reader!
 export setproperty!, iterate, getindex, length
 
-export SerializedCategory, SerializedTopology, PackedHierarchy, serialize, deserialize
+export SerializedTopology, PackedHierarchy, serialize, deserialize
 
 include("DataTypes/DataTypes.jl")
 using .DataTypes

@@ -26,7 +26,7 @@ include("HierarchyLabels/HierarchyLabels.jl")
 using  .HierarchyLabels
 
 # core subtype signature
-export Position, BoundingBox, HLabel, H_Label, LabelHierarchy, Id, Category, StaticString, name
+export Position, BoundingBox, HLabel, H_Label, LabelHierarchy
 export >, <, >=, <=, +, -, *, /, ==, string, show, convert, getindex, convert, iterate
 export id, type, ==, promote_rule, promote_type, length
 
@@ -43,7 +43,7 @@ export PackedHierarchy, rconvert, wconvert, SerializedElement
 
 # core mut signature
 export set_time!, set_box!
-export _add_element!, set_element!, _add_position!, set_position!, set_travel!, _change_wrap!
+export _add_element!, _add_elements!, set_element!, _add_position!, _add_positions!, set_position!, set_travel!, _change_wrap!
 export add_hierarchy!, remove_hierarchy!
 export add_prop!, set_prop!
 export add_label!, add_labels!, add_relation!, insert_relation!, add_relations!, remove_label!, remove_relation!
@@ -52,51 +52,43 @@ export add_label!, add_labels!, add_relation!, insert_relation!, add_relations!,
 
 
 # fileIO
-export SerializedCategory, SerializedTopology, PackedHierarchy, serialize, deserialize
+export SerializedTopology, PackedHierarchy, serialize, deserialize
 
 #constants
-export Entire_System, BO_Prec
+export Entire_System, BO_Precision
 
 const Entire_System = HLabel("entire_system", 1)
+const BO_Precision = Int8
 
 #####
 ##### Type `Position` definition
 #####
 
-const Position{D, F} = Vector{MVector{D, F}} where {D, F <: AbstractFloat}
+const Position{D, F} = Vector{SVector{D, F}} where {D, F <: AbstractFloat}
 
-function Position(D::Integer, F::Type{<:AbstractFloat}, natom::Integer)
-    return if natom < 0
-        error("natom must be >= 0")
-    elseif natom == 0
-        Vector{MVector{D, F}}(undef, 0)
-    else
-        [MVector{D, F}(zeros(F, D)) for _ in 1:natom]
-    end
+function Position{D, F}(natom::Integer) where {D, F}
+    return [SVector{D, F}(zeros(F, D)) for _ in 1:natom]
 end
 
 function Position{D, F}() where {D, F}
-    Position(D, F, 0)
-end
-
-function Position{D, F}(n::Integer) where {D, F}
-    Position(D, F, n)
+    return SVector{D, F}[]
 end
 
 function Position{D, F}(x::Matrix{F}) where {D, F}
     if size(x, 1) != D
         error("Dimension mismatch")
     end
-    return [MVector{D, F}(x[:, i]) for i in 1:size(x, 2)]
+    return [SVector{D, F}(x[:, i]) for i in 1:size(x, 2)]
 end
 
 function Position()
-    Position(3, Float64, 0)
+    Position{3, Float64}()
 end
 
 function Position(n::Integer)
-    Position(3, Float64, n)
+    Position{3, Float64}(n)
 end
+
 
 #####
 ##### Type `BoundingBox` definition
@@ -105,42 +97,21 @@ end
 struct BoundingBox{D, F <: AbstractFloat}
     origin::SVector{D, F}
     axis::SMatrix{D, D, F}
-    BoundingBox(origin::SVector{D, F}, axis::SMatrix{D, D, F}) where {D, F} = new{D, F}(origin, axis)
 end
 
-function BoundingBox(
-    D::Integer, F::Type{<:AbstractFloat}, origin::AbstractVector, axis::AbstractMatrix
-)
-    if D <= 0
-        error("D must be positive integer ")
-    elseif !(D == length(origin)) == size(axis, 1) == size(axis, 2)
-        error("Dimension mismatch ")
-    end
-
+function BoundingBox{D, F}(origin::Vector{F}, axis::Matrix{F}) where {D, F<:AbstractFloat}
     d = det(axis)
     if d < 0
         error("left-handed system not allowed")
     elseif d == 0
         error("box is degenerated")
     end
-
-    return BoundingBox(SVector{D, F}(origin), SMatrix{D, D, F}(axis))
-end
-
-function BoundingBox{D, F}(origin::AbstractVector, axis::AbstractMatrix) where {D, F<:AbstractFloat}
-    BoundingBox(D, F, origin, axis)
+    return BoundingBox{D, F}(SVector{D, F}(origin), SMatrix{D, D, F}(axis))
 end
 
 function BoundingBox{D, F}() where {D, F<:AbstractFloat}
     BoundingBox{D, F}(zeros(F, 3), Matrix{F}(I, D, D))
 end
-
-function BoundingBox(origin::AbstractVector, axis::AbstractMatrix)
-    D = length(origin)
-    F = eltype(origin)
-    BoundingBox(D, F, origin, axis)
-end
-
 
 #####
 ##### Type `System` definition
@@ -151,21 +122,19 @@ abstract type AbstractSystemType end
 
 struct GeneralSystem <: AbstractSystemType end
 
-const BO_Prec = Int8
-
 mutable struct System{D, F<:AbstractFloat, SysType<:AbstractSystemType} <: AbstractSystem{D, F}
     time::F
-    topology::SimpleWeightedGraph{<:Integer, Rational{BO_Prec}}
+    topology::SimpleWeightedGraph{Int64, Rational{BO_Precision}}
     box::BoundingBox{D, F}
 
     # atom property
     position::Position{D, F}
-    travel::Vector{MVector{D, Int16}}
+    travel::Vector{SVector{D, Int16}}
     wrapped::Bool
-    element::Vector{Category{Element}}
+    element::Vector{String}
 
-    hierarchy::Dict{<:AbstractString, LabelHierarchy}
-    props::Dict{<:AbstractString, Dict{HLabel, Any}}
+    hierarchy::Dict{String, LabelHierarchy}
+    props::Dict{String, Dict{HLabel, Any}}
 end
 
 include("property.jl")
@@ -174,12 +143,12 @@ include("trajectory.jl")
 function System{D, F, SysType}() where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     System{D, F, SysType}(
         zero(F),
-        SimpleWeightedGraph{Int64, Rational{BO_Prec}}(),
+        SimpleWeightedGraph{Int64, Rational{BO_Precision}}(),
         BoundingBox{D, F}(),
         Position{D, F}(),
-        Vector{MVector{D, Int16}}(undef, 0),
+        Vector{SVector{D, Int16}}(undef, 0),
         false,
-        Vector{Category{Element}}(undef, 0),
+        String[],
         Dict{String, LabelHierarchy}(),
         Dict{String, Dict{HLabel, Any}}()
     )
@@ -268,22 +237,22 @@ function element(s::AbstractSystem, label::HLabel)
 end
 
 function _add_element!(s::AbstractSystem, ename::AbstractString)
-    _add_element!(s, Category{Element}(ename))
+    _add_element!(s, ename)
 end
 
-function _add_element!(s::AbstractSystem, ename::Category{Element})
-    push!(s.element, ename)
+function _add_elements!(s::AbstractSystem, enames::AbstractVector{<:AbstractString})
+    append!(s.element, enames)
 end
 
 function set_element!(s::AbstractSystem, atom_id::Integer, ename::AbstractString)
-    s.element[atom_id] = Category{Element}(ename)
+    s.element[atom_id] = ename
 end
 
-function set_element!(s::AbstractSystem, atom_ids::AbstractVector{<:Integer}, enames::AbstractVector{<:AbstractString})
+function set_elements!(s::AbstractSystem, atom_ids::AbstractVector{<:Integer}, enames::AbstractVector{<:AbstractString})
     if length(atom_ids) != length(enames)
         throw(DimensionMismatch("Dimension of atom_ids is $(length(atom_ids)) but enames dimension is $(length(enames))"))
     end
-    s.element[atom_ids] .= Category{Element}.(enames)
+    s.element[atom_ids] .= enames
 end
 
 function all_positions(s::AbstractSystem)
@@ -300,6 +269,18 @@ function _add_position!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat})
         error("atom addition with wrapped coordinates is not supprted. ")
     end
     push!(s.travel, zeros(Int16, 3))
+
+    return nothing
+end
+
+function _add_positions!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:AbstractFloat}})
+    append!(all_positions(s), x)
+    if wrapped(s)
+        error("atom addition with wrapped coordinates is not supprted. ")
+    end
+    append!(s.travel, [zeros(Int16, 3) for _ in 1:length(x)])
+
+    return nothing
 end
 
 function set_position!(s::AbstractSystem, atom_id::Integer, x::AbstractVector{<:AbstractFloat})
@@ -381,7 +362,7 @@ function add_label!(s::AbstractSystem, hname::AbstractString, label::HLabel)
     end
 end
 
-function add_label!(s::AbstractSystem, hname::AbstractString, label_type::Category{H_Label})
+function add_label!(s::AbstractSystem, hname::AbstractString, label_type::AbstractString)
     lh = hierarchy(s, hname)
 
     n = count_label(s, hname, label_type)
@@ -402,7 +383,7 @@ function add_labels!(s::AbstractSystem, hname::AbstractString, label_types::Abst
     return nothing
 end
 
-function count_label(s::AbstractSystem, hname::AbstractString, label_type::Category{H_Label})
+function count_label(s::AbstractSystem, hname::AbstractString, label_type::String)
     lh = hierarchy(s, hname)
     labels = _label2node(lh) |> keys
     return count(l -> type(l)==label_type, labels)
@@ -490,15 +471,20 @@ end
 
 # data conversion for HDF5
 
-function serialize(vec::Vector{MVector{D, T}}) where {D, T<:Real}
-    return [vec[atom_id][dim] for dim in 1:D, atom_id in eachindex(vec)]
+function serialize(vec::Vector{SVector{D, T}}) where {D, T<:Real}
+    #return [vec[atom_id][dim] for dim in 1:D, atom_id in eachindex(vec)]
+    spos = Matrix{T}(undef, D, length(vec))
+    for atom_id in eachindex(vec)
+        spos[:, atom_id] = vec[atom_id]
+    end
+    return spos
 end
 
 function deserialize(D::Integer, mat::Matrix{T}) where {T<:Real}
-    pos = [MVector(zero(T), zero(T), zero(T)) for _ in 1:size(mat, 2)] #Vector{MVector{D, T}}()
-    #for (dim, atom_id) in CartesianIndices(mat)
-    for atom_id in eachindex(pos), dim in 1:D
-        pos[atom_id][dim] = mat[dim, atom_id]
+    pos = SVector{D, T}[]
+    resize!(pos, size(mat, 2))
+    for atom_id in eachindex(pos)
+        pos[atom_id] = mat[:, atom_id]
     end
     return pos
 end
@@ -507,8 +493,8 @@ struct SerializedTopology
     num_node::Int64
     edges_org::Vector{Int64}
     edges_dst::Vector{Int64}
-    denominator::Vector{BO_Prec}
-    numerator::Vector{BO_Prec}
+    denominator::Vector{BO_Precision}
+    numerator::Vector{BO_Precision}
 end
 
 function serialize(topo::SimpleWeightedGraph)
@@ -528,10 +514,11 @@ function serialize(topo::SimpleWeightedGraph)
 end
 
 function deserialize(ser_topo::SerializedTopology)
-    topo = SimpleWeightedGraph{Int64, Rational{BO_Prec}}(ser_topo.num_node)
+    topo = SimpleWeightedGraph{Int64, Rational{BO_Precision}}()
     add_vertices!(topo, ser_topo.num_node)
     for i in 1:length(ser_topo.edges_org)
-        add_edge!(topo, ser_topo.edges_org[i], ser_topo.edges_dst[i], Rational{BO_Prec}(ser_topo.numerator[i], ser_topo.denominator[i]))
+        add_edge!(topo, ser_topo.edges_org[i], ser_topo.edges_dst[i], Rational{BO_Precision}(ser_topo.numerator[i], ser_topo.denominator[i]))
+        #add_edge!(topo, ser_topo.edges_org[i], ser_topo.edges_dst[i], ser_topo.numerator[i]//ser_topo.denominator[i])
     end
 
     return topo

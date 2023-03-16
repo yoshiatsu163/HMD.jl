@@ -1,15 +1,15 @@
 # openmm trajectoryもバックエンドにしたいのでDataTypesまわりの最小apiを決める必要がある
 const Entire_System = HLabel("entire_system", 1)
 
-const atom_mass = Dict{StaticString, Float64}(
-    StaticString(elements[:H ].symbol) => 1.008,
-    StaticString(elements[:C ].symbol) => 12.012,
-    StaticString(elements[:N ].symbol) => 14.007,
-    StaticString(elements[:O ].symbol) => 16.000,
-    StaticString(elements[:F ].symbol) => 19.000,
-    StaticString(elements[:Si].symbol) => 28.086,
-    StaticString(elements[:S ].symbol) => 32.067,
-    StaticString(elements[:Cl].symbol) => 35.453
+const atom_mass = Dict{String, Float64}(
+    elements[:H ].symbol => 1.008,
+    elements[:C ].symbol => 12.012,
+    elements[:N ].symbol => 14.007,
+    elements[:O ].symbol => 16.000,
+    elements[:F ].symbol => 19.000,
+    elements[:Si].symbol => 28.086,
+    elements[:S ].symbol => 32.067,
+    elements[:Cl].symbol => 35.453
 )
 
 function dimension(s::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
@@ -17,12 +17,6 @@ function dimension(s::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
 end
 
 function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::AbstractString; super::HLabel)
-    add_atom!(s, x, elem; super=super)
-
-    return nothing
-end
-
-function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::Category{Element}; super::HLabel)
     atom_id = natom(s) + 1
     _add_position!(s, x)
     _add_element!(s, elem)
@@ -36,12 +30,6 @@ function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::
 end
 
 function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:AbstractFloat}}, elem::AbstractVector{<:AbstractString}; super::HLabel)
-    add_atoms!(s, x, Category{Element}.(elem); super=super)
-
-    return nothing
-end
-
-function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:AbstractFloat}}, elem::AbstractVector{Category{Element}}; super::HLabel)
     if length(elem) != length(x)
         error("length of elem and x must be same. ")
     end
@@ -49,13 +37,11 @@ function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:Abst
     front = natom(s) + 1
     back = natom(s) + length(x)
     atom_labels = atom_label.(front:back)
-    for i in 1:length(x)
-        _add_position!(s, x[i])
-        _add_element!(s, elem[i])
-    end
+    _add_positions!(s, x)
+    _add_elements!(s, elem)
     @assert add_vertices!(topology(s), length(x))
     for hname in hierarchy_names(s)
-        add_labels!(s, hname, atom_label.(front:back))
+        add_labels!(s, hname, atom_labels)
         add_relations!(s, hname; super=super, subs=atom_labels)
     end
 
@@ -138,7 +124,7 @@ function atom_label(atom_id::Integer)
 end
 
 function is_atom(label::HLabel)
-    return type(label) == Category{H_Label}("")
+    return type(label) == ""
 end
 
 function neighbors(s::AbstractSystem, atom_id::Integer)
@@ -187,7 +173,7 @@ end
 #end
 
 # 同名の関数がDataTypesにあり
-function all_labels(s::AbstractSystem, hname::AbstractString, label_type::Category{H_Label})
+function all_labels(s::AbstractSystem, hname::AbstractString, label_type::AbstractString)
     labels = hierarchy(s, hname) |> DataTypes.HierarchyLabels._label2node |> keys |> collect
 
     return filter!(label -> type(label)==label_type, labels)
@@ -272,6 +258,7 @@ function hmdsave(name::AbstractString, s::AbstractSystem{D, F}; compress=false) 
 
     h5open(name, "w") do file
         # metadata
+        file["infotrype"] = "System"
         file["dimension"] = dimension(s)
         file["precision"] = precision(s) |> string
         file["system_type"] = system_type(s) |> string
@@ -285,9 +272,9 @@ function hmdsave(name::AbstractString, s::AbstractSystem{D, F}; compress=false) 
         file["box/origin"] = Vector(box(s).origin)
         file["box/axis"] = Matrix(box(s).axis)
 
-        selem = serialize(all_elements(s))
-        file["element/chars"]  = selem.chars
-        file["element/bounds"] = selem.bounds
+        chars, bounds = serialize(all_elements(s))
+        file["element/chars"]  = chars
+        file["element/bounds"] = bounds
 
         stopo = serialize(topology(s))
         for fname in fieldnames(SerializedTopology)
@@ -322,25 +309,27 @@ function hmdread!(s::AbstractSystem{D, F}, name::AbstractString) where {D, F<:Ab
 
         # data
         set_time!(s, read(file, "time"))
-        set_box!(s, BoundingBox(read(file, "box/origin"), read(file, "box/axis")))
+        set_box!(s, BoundingBox{D, F}(read(file, "box/origin"), read(file, "box/axis")))
         s.position = deserialize(D, read(file, "position"))
-        #s.travel = deserialize(read(file, "travel"))
-        #s.wrapped = read(file, "wrapped")
-        #s.element = deserialize(Element, SerializedCategory(read(file, "element/chars"), read(file, "element/bounds")))
-        #s.topology = SerializedTopology(read(file, "topology/num_node"),
-        #                                read(file, "topology/edges_org"),
-        #                                read(file, "topology/edges_dst"),
-        #                                read(file, "topology/denominator"),
-        #                                read(file, "topology/numerator")) |> deserialize
+        s.travel = deserialize(D, read(file, "travel"))
+        s.wrapped = read(file, "wrapped")
+        s.element = deserialize(read(file, "element/chars"), read(file, "element/bounds"))
+        s.topology = SerializedTopology(read(file, "topology/num_node"),
+                                        read(file, "topology/edges_org"),
+                                        read(file, "topology/edges_dst"),
+                                        read(file, "topology/denominator"),
+                                        read(file, "topology/numerator")) |> deserialize
         for hname in read(file, "hierarchy_names")
-            #add_hierarchy!(s, hname)
-            #ph = PackedHierarchy(read(file, "hierarchy/$hname/num_node"),
-            #                    read(file, "hierarchy/$hname/edges_org"),
-            #                    read(file, "hierarchy/$hname/edges_dst"),
-            #                    read(file, "hierarchy/$hname/label_ids"),
-            #                    read(file, "hierarchy/$hname/chars"),
-            #                    read(file, "hierarchy/$hname/bounds"))
-            #s.hierarchy[hname] = deserialize(ph)
+            if hname ∉ hierarchy_names(s)
+                add_hierarchy!(s, hname)
+            end
+            ph = PackedHierarchy(read(file, "hierarchy/$hname/num_node"),
+                                read(file, "hierarchy/$hname/edges_org"),
+                                read(file, "hierarchy/$hname/edges_dst"),
+                                read(file, "hierarchy/$hname/label_ids"),
+                                read(file, "hierarchy/$hname/chars"),
+                                read(file, "hierarchy/$hname/bounds"))
+            s.hierarchy[hname] = deserialize(ph)
         end
         #s.props = file["props"]
         s

@@ -3,7 +3,7 @@ module HierarchyLabels
 using Graphs
 using MLStyle
 
-using ..DataTypes: Id, Category, StaticString, name, SerializedCategory
+#using ..DataTypes: Id, Category, StaticString, name, SerializedCategory
 import ..DataTypes: serialize, deserialize
 
 import Base: getindex
@@ -25,27 +25,18 @@ export PackedHierarchy, serialize, deserialize
 # AbstractLabel must define constructor s.t. ALabel(id::Integer, type)
 abstract type AbstractLabel end
 
-# work around for JLD2 behavior where recursing type parameter cause stack overflow
-struct H_Label end
-
 struct HLabel <: AbstractLabel
-    type::Category{H_Label}
-    id::Id{H_Label}
+    type::String
+    id::Int64
 end
 
-function HLabel(type::AbstractString, id::Integer)
-    HLabel(Category{H_Label}(type), Id{H_Label}(id))
+function id(label::HLabel)
+    return label.id
 end
 
-function HLabel(type::Category{H_Label}, id::Integer)
-    HLabel(type, Id{H_Label}(id))
+function type(label::HLabel)
+    return label.type
 end
-
-function HLabel(sstr::StaticString, id::Integer)
-    HLabel(Category{H_Label}(sstr), Id{H_Label}(id))
-end
-
-#const No_Label = HLabel(typemin(Int64), "No_Label")
 
 #@enum LabelResult Label_Missing=1 Label_Occupied=2 Label_Duplication=3 Relation_Missing=4 Relation_Occupied=5 Success=6
 @data LabelResult begin
@@ -57,38 +48,30 @@ end
     Success
 end
 
-function id(label::HLabel)
-    label.id
-end
-
-function type(label::HLabel)
-    label.type
-end
-
 function ==(lhs::HLabel, rhs::HLabel)
     id(lhs) == id(rhs) && type(lhs) == type(rhs)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", label::HLabel)
-    i = convert(Int64, id(label))
-    t = type(label) |> name
+    i = id(label)
+    t = type(label)
     print(io, "HLabel(\"$t\", $i)")
 end
 
 function Base.show(label::HLabel)
-    i = convert(Int64, id(label))
-    t = type(label) |> name
+    i = id(label)
+    t = type(label)
     print("HLabel(\"$t\", $i)")
 end
 
 function Base.print_to_string(label::HLabel)
-    i = convert(Int64, id(label))
-    t = type(label) |> name
+    i = id(label)
+    t = type(label)
     return "HLabel(\"$t\", $i)"
 end
 
 Base.@kwdef mutable struct LabelHierarchy
-    g::DiGraph = DiGraph()
+    g::DiGraph{Int64} = DiGraph{Int64}()
     labels::Vector{HLabel} = Vector{HLabel}()
     label2node::Dict{HLabel, Int64} = Dict{HLabel, Int64}()
 end
@@ -335,17 +318,17 @@ struct PackedHierarchy
     edges_org::Vector{Int64}
     edges_dst::Vector{Int64}
     label_ids::Vector{Int64}
-    # splitting Vector{Category}
+    # splitting Vector{String}
     chars::Vector{UInt8}
     bounds::Vector{Int64}
 end
 
 function serialize(lh::LabelHierarchy)
-    g = _hierarchy(lh)
-    label_ids = [id(label).id for label in _labels(lh)]
-    # 空ラベルの場合
-    categories = serialize([type(label) for label in _labels(lh)])
+    # split Vecotr{HLabel} to Vector{Int64} and Vector{String}
+    label_ids = [id(label) for label in _labels(lh)]
+    chars, bounds = serialize([type(label) for label in _labels(lh)])
 
+    g = _hierarchy(lh)
     num_node = nv(g)
     edges_org, edges_dst = begin
         orig, dest = Vector{Int64}(undef, ne(g)), Vector{Int64}(undef, ne(g))
@@ -355,7 +338,7 @@ function serialize(lh::LabelHierarchy)
         orig, dest
     end
 
-    return PackedHierarchy(num_node, edges_org, edges_dst, label_ids, categories.chars, categories.bounds)
+    return PackedHierarchy(num_node, edges_org, edges_dst, label_ids, chars, bounds)
 end
 
 function deserialize(ph::PackedHierarchy)
@@ -369,13 +352,8 @@ function deserialize(ph::PackedHierarchy)
     end
 
     label_ids = ph.label_ids
-    chars, bounds = ph.chars, ph.bounds
-    labels = map(1:length(label_ids)-1) do i
-        s, f = bounds[i], bounds[i+1]-1
-        sstr = view(chars, s:f)
-        HLabel(Category{H_Label}(sstr), label_ids[i])
-    end
-    push!(labels, HLabel(Category{H_Label}(chars[bounds[end-1]:bounds[end]-1]), label_ids[end]))
+    label_types = deserialize(ph.chars, ph.bounds)
+    labels = [HLabel(type, id) for (type, id) in zip(label_types, label_ids)]
 
     lh = LabelHierarchy()
     lh.g = g

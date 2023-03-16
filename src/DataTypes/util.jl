@@ -2,21 +2,23 @@
 ##### StaticString definition
 #####
 
-struct StaticString{N}
-    str::NTuple{N, UInt8}
+struct StaticString
+    #str::NTuple{N, UInt8}
+    str::Vector{UInt8}
 end
 
 function StaticString(str::AbstractString)
-    sstr = Tuple(UInt8(c) for c in str)
-    return StaticString{length(sstr)}(sstr)
+    #sstr = NTuple{N, UInt8}(UInt8(c) for c in str)
+
+    return StaticString([UInt8(c) for c in str])
 end
 
-function StaticString(vec::AbstractVector{UInt8})
-    return StaticString{length(vec)}(Tuple(vec))
-end
+#function StaticString(vec::AbstractVector{Char})
+#    return StaticString{length(vec)}(Tuple(vec))
+#end
 
 function string(sstr::StaticString)
-    return Char.(sstr.str) |> join
+    return UInt8.(sstr.str) |> join
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sstr::StaticString)
@@ -106,9 +108,9 @@ function Category{T}(str::AbstractString) where {T}
     return Category{T}(StaticString(str))
 end
 
-function Category{T}(vec::NTuple{N, UInt8}) where {N, T}
-    return Category{T}(StaticString(vec))
-end
+#function Category{T}(vec::Vector{Char}) where {T}
+#    return Category{T}(vec)
+#end
 
 function Category{T}(vec::AbstractVector{UInt8}) where {T}
     return Category{T}(StaticString(vec))
@@ -126,47 +128,41 @@ function Base.length(category::Category)
     return length(name(category))
 end
 
-struct SerializedCategory
-    chars::Vector{UInt8}
-    bounds::Vector{Int64}
-end
-
 # serialization for data storage
 
-function serialize(cats::Vector{Category{T}}) where {T}
-    len = sum(length(e) for e in cats)
-    chars = Vector{UInt8}(undef, len)
-    bounds = Vector{Int64}(undef, length(cats))
+"""
+    serialize(strings)
+
+convert Vector{String} to chars::Vector{UInt8} and bounds::Vector{Int64}.
+The first vector contains all the characters in the strings,
+and the second vector contains the starting index of each string.
+
+"""
+function serialize(strings::Vector{String})
+    chars = Vector{UInt8}(undef, sum(length(str) for str in strings))
+    bounds = Vector{Int64}(undef, length(strings))
     nchar = 1
-    for (i, e) in enumerate(cats)
+    for i in 1:length(strings)
         bounds[i] = nchar
-        for c in name(e)
+        for c in codeunits(strings[i])
             chars[nchar] = c
             nchar += 1
         end
     end
+    push!(bounds, nchar)
 
-    return SerializedCategory(chars, bounds)
+    return chars, bounds
 end
 
-function deserialize(T::Type{<:Any}, scats::SerializedCategory)
-    chars = scats.chars
-    bounds = scats.bounds
-    #cats = [Category{T}(StaticString("")) for i in 1:length(bounds)]
-    #for i in 1:length(bounds)-1
-    #    s, f = bounds[i], bounds[i+1]-1
-    #    cname = Tuple(c for c in view(chars, s:f))
-    #    cats[i] = Category{T}(cname)
-    #end
-    #cname = Tuple(c for c in view(chars, bounds[end-1]:length(chars)))
-    #cats[end] = Category{T}(cname)
-    cats = map(1:length(bounds)-1) do i
-        s, f = bounds[i], bounds[i+1]-1
-        #cname = Tuple(c[n] for n in s:f) # Tuple(c for c in view(chars, s:f))
-        Category{T}(view(chars, s:f))
-        #Category{T}(chars[s:f])
-    end
-    push!(cats, Category{T}(chars[bounds[end-1]:bounds[end]-1]))
+"""
+    deserialize(chars, bounds)
 
-    return cats
+convert chars::Vector{UInt8} and bounds::Vector{Int64} to Vector{string}.
+`char` contains all the characters in the strings,
+and `bounds` contains the starting index of each string in `chars`.
+"""
+function deserialize(chars::Vector{UInt8}, bounds::Vector{Int64})
+    return map(1:length(bounds)-1) do i
+        String(chars[bounds[i]:bounds[i+1]-1])
+    end
 end

@@ -190,18 +190,30 @@ function wrapped(traj::AbstractTrajectory)
 end
 
 # use case
-function hmdsave(name::AbstractString, traj::AbstractTrajectory; compress=false)
-    #jldopen(name, "w"; compress=compress) do file
-    #    for (step, time, reader) in traj
-    #        file["step_$(step)"] = reader
-    #    end
-    #    file["system_type"] = typeof(traj)
-    #    file["step2time"] = traj.step2time
-    #    file["timesteps"] = traj.timesteps
-    #    filr["change_points"] = traj.change_points
-#
-    #end
+function hmdsave(name::AbstractString, traj::AbstractTrajectory{D, F}) where{D, F<:AbstractFloat}
+    #file["infotrype"] = "System"
+    #file["dimension"] = dimension(s)
+    #file["precision"] = precision(s) |> string
+    #file["system_type"] = system_type(s) |> string
 end
+
+function add_snapshot!(traj::AbstractTrajectory{D, F}; time::F, timestep::Int64, position, box, wrapped, travel, props) where {D, F<:AbstractFloat}
+    #s = System{D, F, Immutable}()
+    #set_time!(s, time)
+    #set_box!(s, box)
+    #s.position = position
+    #s.wrapped = wrapped
+    #s.travel = travel
+    #s.props = props
+
+    #push!(traj, s, timestep=timestep, change=false)
+end
+
+function add_snapshot!(traj::AbstractTrajectory{D, F}, s::AbstractSystem{D, F}; timestep::Int64, change::Bool) where {D, F<:AbstractFloat}
+    #push!(traj, s, timestep=timestep, change=change)
+end
+
+
 # getindex?
 #function slice(traj::AbstractTrajectory, index::Integer)
 #
