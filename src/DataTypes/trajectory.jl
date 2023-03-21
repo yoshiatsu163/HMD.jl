@@ -1,7 +1,8 @@
 export AbstractTrajectory, Immutable, Trajectory
-export all_times, all_timesteps, get_timestep, timestep2time, timestep2index, change_points
-export latest_changepoint, add!, update_reader!
+export all_timesteps, get_timestep, is_reaction, get_system
+export latest_reaction, add!, update_reader!, add!
 export setproperty!, iterate, getindex, length
+#export hmdsave, hmdread, add_snapshot!
 
 abstract type AbstractTrajectory{D, F<:AbstractFloat} end
 struct Immutable <: AbstractSystemType end
@@ -17,228 +18,132 @@ struct Immutable <: AbstractSystemType end
 
 
 # 変化の時間スケールに差がある変数を分ける
-mutable struct Trajectory{D, F<:AbstractFloat, SysType<:AbstractSystemType} <: AbstractTrajectory{D, F}
-    systems::Vector{System{D, F, SysType}}
-    step2time::Vector{F}
-    change_points::Vector{Int64}
-    timesteps::Vector{Int64}
+Base.@kwdef mutable struct Trajectory{D, F<:AbstractFloat, SysType<:AbstractSystemType} <: AbstractTrajectory{D, F}
+    systems::Vector{System{D, F, SysType}} = System{D, F, SysType}[]
+    is_reaction::Vector{Bool} = Vector{Bool}(undef, 0)
+    timesteps::Vector{Int64} = Vector{Int64}(undef, 0)
 end
 
 function Trajectory(s::System{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
-    return Trajectory{D, F, SysType}([s], [0.0], [1], [1])
+    return Trajectory{D, F, SysType}([s], [true], [1])
 end
 
-function change_points(traj::AbstractTrajectory)
-    return traj.change_points
+function is_reaction(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    return traj.is_reaction
 end
 
-function _get_system(traj::AbstractTrajectory, index::Integer)
+function get_system(traj::Trajectory{D, F, SysType}, index::Integer) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     return traj.systems[index]
 end
 
-function all_times(traj::AbstractTrajectory)
-    return traj.step2time
-end
-
-function all_timesteps(traj::AbstractTrajectory)
+function all_timesteps(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     return traj.timesteps
 end
 
-function get_timestep(traj::AbstractTrajectory, index::Integer)
+function get_timestep(traj::Trajectory{D, F, SysType}, index::Integer) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     return all_timesteps(traj)[index]
 end
 
-function time(traj::AbstractTrajectory, index::Integer)
-    return all_times(traj)[index]
-end
-
-function timestep2time(traj::AbstractTrajectory, timestep::Integer)
-    index = timestep2index(traj, timestep)
-    return time(traj, index)
-end
-
-function timestep2index(traj::AbstractTrajectory, timestep::Integer)
-    return findfirst(==(timestep), all_timesteps(traj))
-end
-
-function Base.length(traj::AbstractTrajectory{D, F}) where {D, F<:AbstractFloat}
+function Base.length(traj::Trajectory{D, F, SysType}{D, F}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     return length(traj.systems)
 end
 
 function add!(traj::Trajectory{D, F, SysType}, s::System{D, F, SysType}, timestep::Integer; change=false) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
-    @assert length(traj.systems) == length(traj.step2time) == length(traj.timesteps)
-    @assert length(traj.change_points) <= length(traj)
+    @assert length(traj.systems) == length(traj.timesteps)
+    @assert length(traj.is_reaction) == length(traj)
 
-    push!(traj.step2time, time(s))
     push!(traj.timesteps, timestep)
+    push!(traj.is_reaction, change)
     if change
         push!(traj.systems, deepcopy(s))
-        push!(traj.change_points, length(traj.systems))
     else
-        replica = deepcopy(s)
-        empty!(replica.topology)
-        empty!(replica.hierarchy)
-        empty!(replica.elements)
+        replica = System{D, F, SysType}()
+        set_box!(replica, deepcopy(box(s)))
+        set_time!(replica, time(s))
+        replica.position = all_positions(s) |> deepcopy
+        replica.travel = deepcopy(s.travel)
+        replica.wrap = s.wrap
+        #replica.props = deepcopy(s.props)
         push!(traj.systems, replica)
     end
-end
-
-function latest_changepoint(traj::AbstractTrajectory, index::Integer)
-    min_index, max_index = extrema(change_points(traj))
-    if index < min_index
-        error("given index $(index) is smaller than the first change point $min_index. ")
-    end
-
-    cp = change_points(traj)
-    if length(cp) < 2
-        return time(traj, cp[1]), _get_system(traj, cp[1])
-    elseif max_index <= index
-        return time(traj, cp[end]), _get_system(traj, cp[end])
-    elseif index ∈ cp
-        return time(traj, index), _get_system(traj, index)
-    else
-        latest_index = findfirst(index_at_change -> (index_at_change > index), cp) - 1
-        return time(traj, cp[latest_index]), _get_system(traj, cp[latest_index])
-    end
-end
-
-function Base.getindex(traj::AbstractTrajectory{D, F}, index::Integer) where {D, F<:AbstractFloat}
-    if !(0 < index <= length(traj))
-        throw(BoundsError(traj, index))
-    end
-
-    s = latest_changepoint(traj, index)[2]
-    replica = deepcopy(s)
-
-    if index ∈ change_points(traj)
-        return replica
-    else
-        current = _get_system(traj, index)
-        set_time!(replica, time(current))
-        set_box!(replica, deepcopy(box(current)))
-        replica.position = all_positions(current) |> deepcopy
-        replica.travel = deepcopy(current.travel)
-        replica.props = deepcopy(current.props)
-        return replica
-    end
-end
-
-function update_reader!(reader::System{D, F, Immutable}, traj::AbstractTrajectory{D, F}, index::Integer) where {D, F<:AbstractFloat}
-    current = _get_system(traj, index)
-    latest = latest_changepoint(traj, index)[2]
-    set_time!(reader, time(current))
-    set_box!(reader, box(current))
-    reader.position = all_positions(current)
-    reader.element = all_elements(current)
-    reader.travel = current.travel
-    reader.wrapped = latest.wrapped
-    reader.hierarchy = latest.hierarchy
-    reader.topology = topology(latest)
-    # TODO: props
 
     return nothing
 end
 
-#function Base.setproperty!(s::System{D, F, Immutable}, fieldname::Symbol) where {D, F<:AbstractFloat}
-#    error("""This type $(typeof(s)) is intended to be read-only. If you want to mutate some data in trajectory, "s = traj[i]" makes a deepcopy. """)
-#end
-
-function Base.iterate(traj::AbstractTrajectory{D, F}) where {D, F<:AbstractFloat}
-    s = latest_changepoint(traj, 1)[2]
-    index = 1
-    reader = System{D, F, Immutable}()
-    for field in fieldnames(typeof(s))
-        setfield!(reader, field, getfield(s, field))
+function latest_reaction(traj::Trajectory{D, F, SysType}, index::Integer) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    if index < 1
+        error("index must be positive. ")
     end
 
-    return (step=get_timestep(traj, index), time=time(traj, index), reader=reader), (reader, index+1)
-    #return reader, timestep
+    return findlast(==(true), view(is_reaction(traj), 1:index))
 end
 
-# 並列化時に競合の可能性
-function Base.iterate(traj::AbstractTrajectory{D, F}, state::Tuple{System{D, F, Immutable}, Int64}) where {D, F<:AbstractFloat}
-    reader, index = state
-    if index < length(traj)
-        update_reader!(reader, traj, index)
-        return (step=get_timestep(traj, index), time=time(traj, index), reader=reader), (reader, index+1)
+
+#####
+##### Trajectory HDF5 types
+#####
+
+function add_snapshot!(file_handler::H5traj, reader::System{D, F, SysType}, step) where{D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    file = get_file(file_handler)
+    # construction
+    if keys(file) |> isempty
+        file["infotrype"] = "Trajectory"
+        file["dimension"] = dimension(reader)
+        file["precision"] = precision(reader) |> string
+        file["system_type"] = system_type(reader) |> string
+        file["wrapped"] = wrapped(reader)
+        create_group(file, "snapshots")
+        create_group(file, "reactions")
     else
-        return nothing
-    end
-end
-
-function wrap!(traj::AbstractTrajectory)
-    for s in traj.systems
-        wrap!(s)
+        _error_chk(file, reader; mode=mode)
     end
 
+    # trajectory specific properties
+    file["reactions/$step"] = _is_reaction(reader)
+    snap = H5system(file["snapshots/$step"])
+    hmdsave(snap, reader)
+    
     return nothing
 end
 
-function unwrap!(traj::AbstractTrajectory)
-    for s in traj.systems
-        unwrap!(s)
+function snapshot(file_handler::H5traj, index::Integer)
+    file = get_file(file_handler)
+    timesteps = keys(file["snapshots"])
+
+    step = parse(Int64, timesteps[index])
+    snapshot = h5system(file["snapshots/$step"]) |> read_system
+    if _is_reaction(snapshot)
+        return read_system(snap)
+    else
+        reactions = keys(file["reactions"])
+        i = findlast(<(step), reactions)
+        latest_reaction = 
+    end
+end
+
+function nstep(file_handler::H5traj)
+    file = get_file(file_handler)
+    keys(file) |> filter(x->occursin(r"\d+", x)) |> length
+end
+
+function _error_chk(file, reader::AbstractSystem{D, F}; mode) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    if read(file, "infotrype") != "Trajectory"
+        error("The file is not a trajectory file. ")
+    elseif read(file, "dimension") != dimension(reader)
+        error("The dimension of the system is different from the dimension of the trajectory. ")
+    elseif read(file, "precision") != string(precision(reader))
+        error("The precision of the system is different from the precision of the trajectory. ")
+    elseif read(file, "system_type") != string(system_type(reader))
+        error("The system type of the system is different from the system type of the trajectory. ")
+    elseif read(file, "mode") != mode
+        error("mode mistmatch")
     end
 
-    return nothing
+    if wrapped(reader)
+        error("currently supports only unwrapped coordinates. ")
+    end
 end
 
-function wrapped(traj::AbstractTrajectory)
-    is_wrapped = wrapped(traj.systems[1])
-    @assert all(s -> wrapped(s)==is_wrapped, traj.systems)
-
-    return is_wrapped
+function _is_reaction(s::AbstractSystem)
+    return all_positions(s) |> isempty
 end
-
-# use case
-function hmdsave(name::AbstractString, traj::AbstractTrajectory{D, F}) where{D, F<:AbstractFloat}
-    #file["infotrype"] = "System"
-    #file["dimension"] = dimension(s)
-    #file["precision"] = precision(s) |> string
-    #file["system_type"] = system_type(s) |> string
-end
-
-function add_snapshot!(traj::AbstractTrajectory{D, F}; time::F, timestep::Int64, position, box, wrapped, travel, props) where {D, F<:AbstractFloat}
-    #s = System{D, F, Immutable}()
-    #set_time!(s, time)
-    #set_box!(s, box)
-    #s.position = position
-    #s.wrapped = wrapped
-    #s.travel = travel
-    #s.props = props
-
-    #push!(traj, s, timestep=timestep, change=false)
-end
-
-function add_snapshot!(traj::AbstractTrajectory{D, F}, s::AbstractSystem{D, F}; timestep::Int64, change::Bool) where {D, F<:AbstractFloat}
-    #push!(traj, s, timestep=timestep, change=change)
-end
-
-
-# getindex?
-#function slice(traj::AbstractTrajectory, index::Integer)
-#
-#end
-#
-#function slice(traj::AbstractTrajectory, time::AbstractFloat)
-#
-#end
-#
-#function to_system(traj::AbstractTrajectory)
-#
-#end
-#
-#function nearest_slice(traj::AbstractTrajectory, time::AbstractFloat)
-#
-#end
-#
-#function Base.push!(traj::AbstractTrajectory{D, F, SysType}, s::AbstractSystem{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
-#
-#end
-#
-#function Base.append!(addend::AbstractTrajectory{D, F, SysType}, augend::AbstractTrajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
-#
-#end
-#
-#function Base.append!(addend::AbstractTrajectory{D, F, SysType}, augend::AbstractTrajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
-#
-#end
