@@ -4,6 +4,7 @@ using Graphs
 using HDF5
 using LinearAlgebra
 using PeriodicTable
+using Reexport
 using SimpleWeightedGraphs
 using StaticArrays
 using Unitful
@@ -11,7 +12,6 @@ using Unitful
 import Base: getindex, setproperty!, iterate, length, precision
 import Base: >, <, >=, <=, +, -, *, /, ==, string, show
 import Base: position, time, contains, show, promote_type, promote_rule
-#import MetaGraphs: set_prop!, props
 import Graphs: neighbors
 
 export id, type, ==, promote_rule, promote_type, position, time, contains, show
@@ -33,14 +33,20 @@ export dimension, valence, bond_order, neighbors, all_labels, super_labels, sub_
 
 export AbstractTrajectory, Immutable, Trajectory
 export all_times, all_timesteps, get_timestep, timestep2time, timestep2index, change_points
-export latest_changepoint, add!, update_reader!
+export latest_changepoint, add!, update_reader!, add!
 export setproperty!, iterate, getindex, length
 
 export SerializedTopology, PackedHierarchy, serialize, deserialize
 
+
+
 include("DataTypes/DataTypes.jl")
-using .DataTypes
-include("interface.jl")
+@reexport using .DataTypes
+import .DataTypes: hmdsave, hmdread, add_snapshot!
+
+#import .DataTypes: hmdsave, hmdread!
+include("interface/system.jl")
+include("interface/trajectory.jl")
 
 #include("GenericIO/GenericIO.jl")
 #using .GenericIO

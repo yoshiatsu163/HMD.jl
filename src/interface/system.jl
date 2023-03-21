@@ -12,14 +12,10 @@ const atom_mass = Dict{String, Float64}(
     elements[:Cl].symbol => 35.453
 )
 
-function dimension(s::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
-    return D
-end
-
 function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::AbstractString; super::HLabel)
     atom_id = natom(s) + 1
-    _add_position!(s, x)
-    _add_element!(s, elem)
+    DataTypes._add_position!(s, x)
+    DataTypes._add_element!(s, elem)
     @assert add_vertex!(topology(s))
     for hname in hierarchy_names(s)
         add_label!(s, hname, atom_label(atom_id))
@@ -37,8 +33,8 @@ function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:Abst
     front = natom(s) + 1
     back = natom(s) + length(x)
     atom_labels = atom_label.(front:back)
-    _add_positions!(s, x)
-    _add_elements!(s, elem)
+    DataTypes._add_positions!(s, x)
+    DataTypes._add_elements!(s, elem)
     @assert add_vertices!(topology(s), length(x))
     for hname in hierarchy_names(s)
         add_labels!(s, hname, atom_labels)
@@ -172,13 +168,6 @@ end
     #   AbstractSystemの定義が必要
 #end
 
-# 同名の関数がDataTypesにあり
-function all_labels(s::AbstractSystem, hname::AbstractString, label_type::AbstractString)
-    labels = hierarchy(s, hname) |> DataTypes.HierarchyLabels._label2node |> keys |> collect
-
-    return filter!(label -> type(label)==label_type, labels)
-end
-
 function super_labels(s::AbstractSystem, hname::AbstractString, label::HLabel)
     return _traverse_from(s, hname, label, super)
 end
@@ -251,87 +240,24 @@ function unwrap!(s::AbstractSystem)
     return nothing
 end
 
+#####
+##### System HDF5 interface
+#####
+
 function hmdsave(name::AbstractString, s::AbstractSystem{D, F}; compress=false) where {D, F<:AbstractFloat}
-    if compress
-        println("warning: compression is not supported yet.")
-    end
-
-    h5open(name, "w") do file
-        # metadata
-        file["infotrype"] = "System"
-        file["dimension"] = dimension(s)
-        file["precision"] = precision(s) |> string
-        file["system_type"] = system_type(s) |> string
-
-        #data
-        file["time"] = time(s)
-        file["position"] = serialize(all_positions(s))
-        file["travel"] = serialize(all_travels(s))
-        file["wrapped"] = wrapped(s)
-
-        file["box/origin"] = Vector(box(s).origin)
-        file["box/axis"] = Matrix(box(s).axis)
-
-        chars, bounds = serialize(all_elements(s))
-        file["element/chars"]  = chars
-        file["element/bounds"] = bounds
-
-        stopo = serialize(topology(s))
-        for fname in fieldnames(SerializedTopology)
-            file["topology/$(fname)"] = getfield(stopo, fname)
-        end
-
-        file["hierarchy_names"] = hierarchy_names(s)
-        for hname in hierarchy_names(s)
-            ser_hierarchy = serialize(hierarchy(s, hname))
-            for fname in fieldnames(PackedHierarchy)
-                file["hierarchy/$hname/$(fname)"] = getfield(ser_hierarchy, fname)
-            end
-        end
-        ##temporary
-        #file["props"] = s.props
-    end
+    file = h5system(name, "w")
+    DataTypes.hmdsave(file, s; compress=compress)
+    close(file)
 
     return nothing
 end
 
 function hmdread!(s::AbstractSystem{D, F}, name::AbstractString) where {D, F<:AbstractFloat}
-    return h5open(name, "r") do file
-        # metadata check
-        matched = begin
-            read(file, "dimension") == D &&
-            read(file, "precision") == string(F) &&
-            read(file, "system_type") == system_type(s) |> string
-        end
-        if !matched
-            error("metadata is not matched. ")
-        end
+    file = h5system(name, "r")
+    DataTypes.read_system(file)
+    close(file)
 
-        # data
-        set_time!(s, read(file, "time"))
-        set_box!(s, BoundingBox{D, F}(read(file, "box/origin"), read(file, "box/axis")))
-        s.position = deserialize(D, read(file, "position"))
-        s.travel = deserialize(D, read(file, "travel"))
-        s.wrapped = read(file, "wrapped")
-        s.element = deserialize(read(file, "element/chars"), read(file, "element/bounds"))
-        s.topology = SerializedTopology(read(file, "topology/num_node"),
-                                        read(file, "topology/edges_org"),
-                                        read(file, "topology/edges_dst"),
-                                        read(file, "topology/denominator"),
-                                        read(file, "topology/numerator")) |> deserialize
-        for hname in read(file, "hierarchy_names")
-            if hname ∉ hierarchy_names(s)
-                add_hierarchy!(s, hname)
-            end
-            ph = PackedHierarchy(read(file, "hierarchy/$hname/num_node"),
-                                read(file, "hierarchy/$hname/edges_org"),
-                                read(file, "hierarchy/$hname/edges_dst"),
-                                read(file, "hierarchy/$hname/label_ids"),
-                                read(file, "hierarchy/$hname/chars"),
-                                read(file, "hierarchy/$hname/bounds"))
-            s.hierarchy[hname] = deserialize(ph)
-        end
-        #s.props = file["props"]
-        s
-    end
+    return s
+end
+ 
 end
