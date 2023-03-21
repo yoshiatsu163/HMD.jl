@@ -22,7 +22,7 @@ function Base.getindex(traj::Trajectory{D, F, SysType}, index::Integer) where {D
     return replica
 end
 
-# 
+#
 function update_reader!(reader::System{D, F, Immutable}, traj::Trajectory{D, F, SysType}, index::Integer) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     current = _get_system(traj, index)
     latest = latest_reaction(traj, index)[2]
@@ -44,6 +44,7 @@ end
 #end
 
 function Base.iterate(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    # ここでreaction pointをすべて調べ田植えでstateとして後続に渡せば毎回線型探索しなくても良い
     reaction = latest_reaction(traj, 1)
     index = 1
     reader = System{D, F, Immutable}()
@@ -102,33 +103,65 @@ function hmdsave(name::AbstractString, traj::AbstractTrajectory{D, F}) where {D,
 end
 
 function read_traj(name::AbstractString)
-    trajectory_file = h5traj(name, "r")
-    file = get_file(trajectory_file)
+    traj_file = h5traj(name, "r")
 
-    D = read(file, "dimension")
-    F = read(file, "precision") |> Symbol |> eval
-    systype = read(file, "system_type") |> Symblo |> eval 
-    traj = Trajectory{D, F, systype}()
+    D, F, SysType = get_metadata(traj_file)
+    traj = Trajectory{D, F, SysType}()
 
-    for reader in trajectory_file
+    for reader in traj_file
         add!(traj, reader.reader, reader.step, change=DataType._is_reaction(reader.reader))
     end
-        
+
     return traj
 end
 
-function getindex(traj_file::H5traj, index::Integer)
-    #file = get_file(traj_file)
-    #reader = System{D, F, Immutable}()
-    #for field in fieldnames(typeof(reader))
-    #    setfield!(reader, field, read(file, "systems/$index/$field"))
-    #end
+function Base.getindex(traj_file::H5traj, index::Integer)
+    D, F, SysType = get_metadata(traj_file)
+    s = System{D, F, SysType}()
+    import_dynamic!(s, traj_file, index)
+    latest_reaction = latest_reaction(traj_file, index)
+    import_static!(s, traj_file, latest_reaction)
 
-    return reader
-end
-    
+    return deepcopy(s)
 end
 
+function Base.iterate(traj_file::H5traj)
+    index = 1
+
+    reactions = get_reactions(traj_file)
+    reaction_points = findall(==(true), reactions)
+    timesteps = get_timesteps(traj_file)
+
+    reader = System{D, F, Immutable}()
+    import_static!(reader, traj_file, index)
+    static_buffer = deepcopy(reader)
+    import_dynamic!(reader, traj_file, index)
+
+    return (step=step, reader=reader), (index+1, reaction_points, timesteps, static_buffer)
+end
+
+function Base.iterate(traj_file::H5traj, state::Tuple{Int64, Vector{Int64}, Vector{Int64}, System{D, F, SysType}}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    index, reaction_points, timesteps, static_buffer = state
+    if !(0 < index < length(traj_file))
+        throw(BoundsError(traj_file, index))
+    elseif index == length(traj_file)
+        return nothing
+    end
+
+    reader = System{D, F, Immutable}()
+    if index ∈ reaction_points
+        import_static!(reader, traj_file, index)
+        static_buffer = deepcopy(reader)
+    else
+        reader.wrap = static_buffer.wrap
+        reader.element = static_buffer.element
+        reader.topology = static_buffer.topology
+        reader.hierarchy = static_buffer.hierarchy
+    end
+    import_dynamic!(reader, traj_file, index)
+
+    return (step=step, reader=reader), (index+1, reaction_points, timesteps, static_buffer)
+end
 
 # getindex?
 #function slice(traj::AbstractTrajectory, index::Integer)

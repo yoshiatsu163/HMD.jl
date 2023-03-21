@@ -2,7 +2,7 @@ export AbstractTrajectory, Immutable, Trajectory
 export all_timesteps, get_timestep, is_reaction, get_system
 export latest_reaction, add!, update_reader!, add!
 export setproperty!, iterate, getindex, length
-#export hmdsave, hmdread, add_snapshot!
+export add_snapshot!, get_timesteps, get_reactions, get_metadata
 
 abstract type AbstractTrajectory{D, F<:AbstractFloat} end
 struct Immutable <: AbstractSystemType end
@@ -28,8 +28,8 @@ function Trajectory(s::System{D, F, SysType}) where {D, F<:AbstractFloat, SysTyp
     return Trajectory{D, F, SysType}([s], [true], [1])
 end
 
-function is_reaction(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
-    return traj.is_reaction
+function is_reaction(traj::Trajectory{D, F, SysType}, index::Integer) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    return traj.is_reaction[index]
 end
 
 function get_system(traj::Trajectory{D, F, SysType}, index::Integer) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
@@ -75,15 +75,18 @@ function latest_reaction(traj::Trajectory{D, F, SysType}, index::Integer) where 
         error("index must be positive. ")
     end
 
-    return findlast(==(true), view(is_reaction(traj), 1:index))
+    return findlast(==(true), view(traj.is_reaction, 1:index))
 end
 
+function is_reaction(s::AbstractSystem)
+    return all_positions(s) |> isempty
+end
 
 #####
 ##### Trajectory HDF5 types
 #####
 
-function add_snapshot!(file_handler::H5traj, reader::System{D, F, SysType}, step) where{D, F<:AbstractFloat, SysType<:AbstractSystemType}
+function add_snapshot!(file_handler::H5traj, reader::System{D, F, SysType}, step; unsafe=false) where{D, F<:AbstractFloat, SysType<:AbstractSystemType}
     file = get_file(file_handler)
     # construction
     if keys(file) |> isempty
@@ -94,36 +97,78 @@ function add_snapshot!(file_handler::H5traj, reader::System{D, F, SysType}, step
         file["wrapped"] = wrapped(reader)
         create_group(file, "snapshots")
         create_group(file, "reactions")
-    else
+    elseif !unsafe
         _error_chk(file, reader; mode=mode)
     end
 
     # trajectory specific properties
-    file["reactions/$step"] = _is_reaction(reader)
+    file["reactions/$step"] = is_reaction(reader)
     snap = H5system(file["snapshots/$step"])
     hmdsave(snap, reader)
-    
+
     return nothing
 end
 
-function snapshot(file_handler::H5traj, index::Integer)
-    file = get_file(file_handler)
-    timesteps = keys(file["snapshots"])
-
-    step = parse(Int64, timesteps[index])
-    snapshot = h5system(file["snapshots/$step"]) |> read_system
-    if _is_reaction(snapshot)
-        return read_system(snap)
-    else
-        reactions = keys(file["reactions"])
-        i = findlast(<(step), reactions)
-        latest_reaction = 
+function import_dynamic!(reader::System{D, F, Immutable}, traj_file::H5traj, index::Integer; timesteps::Vector{Int64}=Int64[]) where {D, F<:AbstractFloat}
+    if isempty(timesteps)
+        timesteps = get_timesteps(traj_file)
     end
+
+    file = get_file(traj_file)
+    snap = h5system(file["snapshots/$(timesteps[index])"], "r")
+    D_file, F_file, SysType_file = get_metadata(snap)
+    if (D, F) != (D_file, F_file)
+        error("Dimension and precision of the reader and the trajectory file are different. ")
+    end
+    import_dynamic!(reader, snap)
+
+    return nothing
 end
 
-function nstep(file_handler::H5traj)
-    file = get_file(file_handler)
-    keys(file) |> filter(x->occursin(r"\d+", x)) |> length
+function import_static!(reader::System{D, F, Immutable}, traj_file::H5traj, index::Integer; timesteps::Vector{Int64}=Int64[]) where {D, F<:AbstractFloat}
+    if isempty(timesteps)
+        timesteps = get_timesteps(traj_file)
+    end
+
+    file = get_file(traj_file)
+    snap = h5system(file["snapshots/$(timesteps[index])"], "r")
+    D_file, F_file, SysType_file = get_metadata(snap)
+    if (D, F) != (D_file, F_file)
+        error("Dimension and precision of the reader and the trajectory file are different. ")
+    end
+    import_static!(reader, snap)
+
+    return nothing
+end
+
+function latest_reaction(traj_file::H5traj, index::Integer)
+    reactions = get_reactions(traj_file)
+    return findlast(==(true), view(reactions, 1:index))
+end
+
+function get_timesteps(traj_file::H5traj)
+    file = get_file(traj_file)
+    return keys(file["snapshots"])
+end
+
+function get_reactions(traj_file::H5traj)
+    file = get_file(traj_file)
+    timestep = keys(file["reactions"])
+    reactions = Vector{Bool}(undef, length(timestep))
+    for step in timestep
+        reactions[step] = read(file["reactions/$step"])
+    end
+
+    return reactions
+end
+
+function get_metadata(traj_file::H5traj)
+    file = get_file(traj_file)
+    D = read(file, "dimension")
+    F = read(file, "precision") |> Symbol |> eval
+    SysType = read(file, "system_type") |> Symbol |> eval
+
+    return D, F, SysType
 end
 
 function _error_chk(file, reader::AbstractSystem{D, F}; mode) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
@@ -144,6 +189,12 @@ function _error_chk(file, reader::AbstractSystem{D, F}; mode) where {D, F<:Abstr
     end
 end
 
-function _is_reaction(s::AbstractSystem)
-    return all_positions(s) |> isempty
+function is_reaction(traj_file::H5traj, index::Integer)
+    file = get_file(traj_file)
+    return read(file, "reactions/$index")
+end
+
+function Base.length(traj_file::H5traj)
+    file = get_file(traj_file)
+    return length(keys(file["snapshots"]))
 end

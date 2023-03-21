@@ -605,25 +605,60 @@ function hmdsave(file_handler::H5system, s::System{D, F, SysType}; compress=fals
     return nothing
 end
 
-function read_system(file_handler::H5system)
-    file = get_file(file_handler)
+function read_system(system_file::H5system)
+    #file = get_file(system_file)
     if read(file, "infotype") != "System"
         error("file $(name) is not a System file. ")
     end
 
     # system construction
-    D = read(file, "dimension")
-    F = read(file, "precision") |> Symbol |> eval
-    SysType = read(file, "system_type") |> Symbol |> eval
+    D, F, SysType = get_metadata(file)
     s = System{D, F, SysType}()
 
     # data
+    #set_time!(s, read(file, "time"))
+    #set_box!(s, BoundingBox{D, F}(read(file, "box/origin"), read(file, "box/axis")))
+    #s.position = deserialize(D, read(file, "position"))
+    #s.travel = deserialize(D, read(file, "travel"))
+    import_dynamic!(s, system_file)
+    import_static!(s, system_file)
+    #s.wrapped = read(file, "wrapped")
+    #s.element = deserialize(read(file, "element/chars"), read(file, "element/bounds"))
+    #s.topology = SerializedTopology(read(file, "topology/num_node"),
+    #                                read(file, "topology/edges_org"),
+    #                                read(file, "topology/edges_dst"),
+    #                                read(file, "topology/denominator"),
+    #                                read(file, "topology/numerator")) |> deserialize
+    #for hname in read(file, "hierarchy_names")
+    #    if hname ∉ hierarchy_names(s)
+    #        add_hierarchy!(s, hname)
+    #    end
+    #    ph = PackedHierarchy(read(file, "hierarchy/$hname/num_node"),
+    #                        read(file, "hierarchy/$hname/edges_org"),
+    #                        read(file, "hierarchy/$hname/edges_dst"),
+    #                        read(file, "hierarchy/$hname/label_ids"),
+    #                        read(file, "hierarchy/$hname/chars"),
+    #                        read(file, "hierarchy/$hname/bounds"))
+    #    s.hierarchy[hname] = deserialize(ph)
+    #end
+    #s.props = file["props"]
+    return s
+end
+
+function import_dynamic!(s::System{D, F, SysType}, system_file::H5system) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    file = get_file(system_file)
     set_time!(s, read(file, "time"))
     set_box!(s, BoundingBox{D, F}(read(file, "box/origin"), read(file, "box/axis")))
     s.position = deserialize(D, read(file, "position"))
     s.travel = deserialize(D, read(file, "travel"))
-    s.wrapped = read(file, "wrapped")
+
+    return nothing
+end
+
+function import_static!(s::System{D, F, SysType}, system_file::H5system) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    file = get_file(system_file)
     s.element = deserialize(read(file, "element/chars"), read(file, "element/bounds"))
+    s.wrapped = read(file, "wrapped")
     s.topology = SerializedTopology(read(file, "topology/num_node"),
                                     read(file, "topology/edges_org"),
                                     read(file, "topology/edges_dst"),
@@ -641,8 +676,17 @@ function read_system(file_handler::H5system)
                             read(file, "hierarchy/$hname/bounds"))
         s.hierarchy[hname] = deserialize(ph)
     end
-    #s.props = file["props"]
-    return s
+
+    return nothing
+end
+
+function get_metadata(system_file::H5system)
+    file = get_file(system_file)
+    D = read(file, "dimension")
+    F = read(file, "precision") |> Symbol |> eval
+    SysType = read(file, "system_type") |> Symbol |> eval
+
+    return D, F, SysType
 end
 
 include("trajectory.jl")
