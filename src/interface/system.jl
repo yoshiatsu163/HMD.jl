@@ -252,12 +252,10 @@ function hmdsave(name::AbstractString, s::AbstractSystem{D, F}; compress=false) 
     return nothing
 end
 
-function hmdread!(s::AbstractSystem{D, F}, name::AbstractString) where {D, F<:AbstractFloat}
+function read_system(name::AbstractString, template::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
     file = h5system(name, "r")
-    DataTypes.read_system(file)
+    s = DataTypes.read_system(file, template)
     close(file)
 
     return s
-end
- 
 end

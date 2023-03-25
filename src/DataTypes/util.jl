@@ -139,6 +139,11 @@ and the second vector contains the starting index of each string.
 
 """
 function serialize(strings::Vector{String})
+    if isempty(strings)
+        return UInt8[], Int64[]
+    end
+
+
     chars = Vector{UInt8}(undef, sum(length(str) for str in strings))
     bounds = Vector{Int64}(undef, length(strings))
     nchar = 1

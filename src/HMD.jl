@@ -9,9 +9,9 @@ using SimpleWeightedGraphs
 using StaticArrays
 using Unitful
 
-import Base: getindex, setproperty!, iterate, length, precision
+import Base: getindex, setproperty!, iterate, length, precision, close
 import Base: >, <, >=, <=, +, -, *, /, ==, string, show
-import Base: position, time, contains, show, promote_type, promote_rule
+import Base: position, time, contains, show, promote_type, promote_rule, similar
 import Graphs: neighbors
 
 export id, type, ==, promote_rule, promote_type, position, time, contains, show
@@ -28,21 +28,20 @@ export labels, add_label!, add_labels!, count_label, add_relation!, add_relation
 export Id, Category, Entire_System
 export id, type, ==
 export contains, has_relation, issuper, issub, super, sub
-export hmdsave, hmdread!
+export hmdsave, read_system
 export dimension, valence, bond_order, neighbors, all_labels, super_labels, sub_labels, wrap, atom_mass
 
 export AbstractTrajectory, Immutable, Trajectory
 export all_times, all_timesteps, get_timestep, timestep2time, timestep2index, change_points
-export latest_changepoint, add!, update_reader!, add!
-export setproperty!, iterate, getindex, length
+export latest_changepoint, add!
+export setproperty!, iterate, getindex, length, read_traj, snapshot
 
-export SerializedTopology, PackedHierarchy, serialize, deserialize
+export SerializedTopology, PackedHierarchy, serialize, deserialize, close
 
 
 
 include("DataTypes/DataTypes.jl")
 @reexport using .DataTypes
-import .DataTypes: hmdsave, hmdread, add_snapshot!
 
 #import .DataTypes: hmdsave, hmdread!
 include("interface/system.jl")

@@ -4,6 +4,9 @@
 #
 #
 
+# ここにはデータ型の内部を直接触る最小限の関数を書く
+# HMD/interface/system.jlにAbstractSystem関数を作成することでDataTypesの内部構造を容易に変更できる
+
 module DataTypes
 
 using DataStructures
@@ -15,12 +18,12 @@ using PeriodicTable
 using SimpleWeightedGraphs
 using StaticArrays
 
-import Base: getindex, setproperty!, iterate, length, precision
+import Base: getindex, setproperty!, iterate, length, precision, similar
 import Base: >, <, >=, <=, +, -, *, /, ==, string, show, convert
 import Base: position, time, contains
 import Base: promote_rule, promote_type
 import Base: ∈, ∉
-import Base; close
+import Base: close
 
 include("util.jl")
 include("HierarchyLabels/HierarchyLabels.jl")
@@ -30,7 +33,7 @@ using  .HierarchyLabels
 # core subtype signature
 export Position, BoundingBox, HLabel, H_Label, LabelHierarchy
 export >, <, >=, <=, +, -, *, /, ==, string, show, convert, getindex, convert, iterate
-export id, type, ==, promote_rule, promote_type, length
+export id, type, ==, promote_rule, promote_type, length, similar
 
 # core immut signature
 export AbstractSystemType, GeneralSystem, AbstractSystem, System
@@ -101,7 +104,7 @@ struct BoundingBox{D, F <: AbstractFloat}
     axis::SMatrix{D, D, F}
 end
 
-function BoundingBox{D, F}(origin::Vector{F}, axis::Matrix{F}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+function BoundingBox{D, F}(origin::Vector{F}, axis::Matrix{F}) where {D, F<:AbstractFloat}
     d = det(axis)
     if d < 0
         error("left-handed system not allowed")
@@ -111,7 +114,7 @@ function BoundingBox{D, F}(origin::Vector{F}, axis::Matrix{F}) where {D, F<:Abst
     return BoundingBox{D, F}(SVector{D, F}(origin), SMatrix{D, D, F}(axis))
 end
 
-function BoundingBox{D, F}() where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+function BoundingBox{D, F}() where {D, F<:AbstractFloat}
     BoundingBox{D, F}(zeros(F, 3), Matrix{F}(I, D, D))
 end
 
@@ -153,7 +156,7 @@ function System{D, F, SysType}() where {D, F<:AbstractFloat, SysType<:AbstractSy
     )
 end
 
-function System{D, F}() where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+function System{D, F}() where {D, F<:AbstractFloat}
     return System{D, F, GeneralSystem}()
 end
 
@@ -169,17 +172,8 @@ function system_type(s::System{D, F, SysType}) where {D, F<:AbstractFloat, SysTy
     return SysType
 end
 
-function Base.show(io::IO, ::MIME"text/plain", s::System{D, F, SysType}) where {D, F}
+function Base.show(io::IO, ::MIME"text/plain", s::System{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     "System{$D, $F}
-        time: $(time(s))
-        bbox: $(box(s))
-        natoms: $(natom(s))
-        hierarchy: $(hierarchy_names(s))
-    " |> println
-end
-
-function Base.show(io::IO, ::MIME"text/plain", s::System{D, F, SysType}) where {D, F, SysType}
-    "System{$D, $F, $SysType}
         time: $(time(s))
         bbox: $(box(s))
         natoms: $(natom(s))
@@ -466,6 +460,10 @@ function sub(s::System, hname::AbstractString, label::HLabel)
     return _sub(lh, label)
 end
 
+function Base.similar(s::System{D, F, SysType}) where {D, F, SysType}
+    return System{D, F, SysType}()
+end
+
 #####
 ##### HDF5 IO
 #####
@@ -535,8 +533,9 @@ end
 
 function h5system(name::AbstractString, mode::AbstractString)
     file_handler = H5system(h5open(name, mode))
-    file = get_file(file)
-    if read(file, "infotrype") != "System"
+    file = get_file(file_handler)
+    if mode != "w" && read(file, "infotype") != "System"
+        close(file_handler)
         error("file $(name) is not a System file. ")
     end
 
@@ -545,8 +544,9 @@ end
 
 function h5traj(name::AbstractString, mode::AbstractString)
     file_handler = H5traj(h5open(name, mode))
-    file = get_file(file)
-    if read(file, "infotrype") != "Trajectory"
+    file = get_file(file_handler)
+    if mode != "w" && read(file, "infotype") != "Trajectory"
+        close(file_handler)
         error("file $(name) is not a Trajectory file. ")
     end
 
@@ -605,43 +605,17 @@ function hmdsave(file_handler::H5system, s::System{D, F, SysType}; compress=fals
     return nothing
 end
 
-function read_system(system_file::H5system)
-    #file = get_file(system_file)
-    if read(file, "infotype") != "System"
-        error("file $(name) is not a System file. ")
+function read_system(system_file::H5system, template::System{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    # metadata check
+    D_file, F_file, SysType_file = get_metadata(system_file)
+    if (D_file, F_file) != (D, string(F))
+        error("System type mismatch. (file: $(D_file), $(F_file), $(SysType_file), system: $(D), $(F), $(SysType)")
     end
 
-    # system construction
-    D, F, SysType = get_metadata(file)
-    s = System{D, F, SysType}()
-
     # data
-    #set_time!(s, read(file, "time"))
-    #set_box!(s, BoundingBox{D, F}(read(file, "box/origin"), read(file, "box/axis")))
-    #s.position = deserialize(D, read(file, "position"))
-    #s.travel = deserialize(D, read(file, "travel"))
+    s = similar(template)
     import_dynamic!(s, system_file)
     import_static!(s, system_file)
-    #s.wrapped = read(file, "wrapped")
-    #s.element = deserialize(read(file, "element/chars"), read(file, "element/bounds"))
-    #s.topology = SerializedTopology(read(file, "topology/num_node"),
-    #                                read(file, "topology/edges_org"),
-    #                                read(file, "topology/edges_dst"),
-    #                                read(file, "topology/denominator"),
-    #                                read(file, "topology/numerator")) |> deserialize
-    #for hname in read(file, "hierarchy_names")
-    #    if hname ∉ hierarchy_names(s)
-    #        add_hierarchy!(s, hname)
-    #    end
-    #    ph = PackedHierarchy(read(file, "hierarchy/$hname/num_node"),
-    #                        read(file, "hierarchy/$hname/edges_org"),
-    #                        read(file, "hierarchy/$hname/edges_dst"),
-    #                        read(file, "hierarchy/$hname/label_ids"),
-    #                        read(file, "hierarchy/$hname/chars"),
-    #                        read(file, "hierarchy/$hname/bounds"))
-    #    s.hierarchy[hname] = deserialize(ph)
-    #end
-    #s.props = file["props"]
     return s
 end
 
@@ -684,7 +658,7 @@ function get_metadata(system_file::H5system)
     file = get_file(system_file)
     D = read(file, "dimension")
     F = read(file, "precision") |> Symbol |> eval
-    SysType = read(file, "system_type") |> Symbol |> eval
+    SysType = read(file, "system_type")
 
     return D, F, SysType
 end
