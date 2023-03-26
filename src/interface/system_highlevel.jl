@@ -1,4 +1,3 @@
-# openmm trajectoryもバックエンドにしたいのでDataTypesまわりの最小apiを決める必要がある
 const Entire_System = HLabel("entire_system", 1)
 
 const atom_mass = Dict{String, Float64}(
@@ -157,17 +156,6 @@ function l2a(s::AbstractSystem, hname::AbstractString, label::HLabel)
     return atom_ids
 end
 
-# TODO
-#function atom_label(T::Type{<:AbstractLabel}, atom_id::Integer)
-#    T(atom_id, "")
-#end
-
-#function add!(s::System, addend::System)
-    #topology の connection pointが必要
-    #一般のsystemは自由度が高すぎてaddが定義困難 -> HMDPolymer等を作って限定的にaddを定義
-    #   AbstractSystemの定義が必要
-#end
-
 function super_labels(s::AbstractSystem, hname::AbstractString, label::HLabel)
     return _traverse_from(s, hname, label, super)
 end
@@ -189,55 +177,6 @@ function _traverse_from(s::AbstractSystem, hname::AbstractString, label::HLabel,
     end
 
     return labels
-end
-
-function wrap!(s::AbstractSystem)
-    if wrapped(s)
-        return nothing
-    end
-
-    axis = box(s).axis
-    origin = box(s).origin
-    # x = c[1] .* axis[:,1] .+ c[2] .* axis[:,2] .+ ...
-    e_i_e_j = [dot(axis[:,i], axis[:,j]) for i in 1:dimension(s), j in 1:dimension(s)] |> Symmetric
-    for id in 1:natom(s)
-        x = position(s, id) .- origin
-        c = e_i_e_j \ [dot(x, axis[:,dim]) for dim in 1:dimension(s)]
-        travel = floor.(Int16, c) #trunc.(Int16, c)
-        set_travel!(s, id, travel)
-        digit = c .- travel
-        pos = map(1:dimension(s)) do dim
-            #if digit[dim] >= 0
-            #    digit[dim] .* axis[:,dim]
-            #else
-            #    (digit[dim] + 1) .* axis[:,dim]
-            #end
-            digit[dim] .* axis[:,dim]
-        end |> p-> reduce(.+, p)
-        set_position!(s, id, pos .+ origin)
-    end
-    _change_wrap!(s)
-
-    return nothing
-end
-
-function unwrap!(s::AbstractSystem)
-    if !wrapped(s)
-        return nothing
-    end
-
-    axis   = box(s).axis
-    origin = box(s).origin
-    for i in 1:natom(s)
-        x = position(s, i) .- origin
-        n = travel(s, i)
-        pos = x .+ mapreduce(dim -> n[dim] .* axis[:, dim], .+, 1:dimension(s))
-        set_position!(s, i, pos .+ origin)
-        set_travel!(s, i, zeros(Int16, 3))
-    end
-    _change_wrap!(s)
-
-    return nothing
 end
 
 #####

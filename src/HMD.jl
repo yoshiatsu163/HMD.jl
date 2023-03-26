@@ -9,43 +9,148 @@ using SimpleWeightedGraphs
 using StaticArrays
 using Unitful
 
-import Base: getindex, setproperty!, iterate, length, precision, close
-import Base: >, <, >=, <=, +, -, *, /, ==, string, show
-import Base: position, time, contains, show, promote_type, promote_rule, similar
+import Base: getindex, setproperty!, iterate, length, precision, close, string, show, showerror
+import Base: >, <, >=, <=, +, -, *, /, ==, position
+import Base: position, time, contains, promote_type, promote_rule, similar
 import Graphs: neighbors
 
-export id, type, ==, promote_rule, promote_type, position, time, contains, show
-export >, <, >=, <=, +, -, *, /, ==, string, show, convert, getindex, convert, setproperty!, iterate
+export
+    # System constants
+    Entire_System,
+    atom_mass,
 
-export AbstractSystemType, GeneralSystem
-export Position, BoundingBox, AbstractSystem, System, HLabel, H_Label, LabelHierarchy
-export time, set_time!, natom, nbond, topology, box, set_box!, dimension, precision, system_type, add_atom!, add_atoms!, add_bond!, add_bonds!, atom_label, l2a, is_atom
-export all_elements, element, _add_element!, set_element!
-export all_positions, position, _add_position!, set_position!, all_travels, travel, set_travel!, wrapped, wrap!, unwrap!
-export hierarchy_names, hierarchy, add_hierarchy!, remove_hierarchy!, merge_hierarchy!
-export prop_names, props, prop, labels_in_prop, add_prop!, set_prop!
-export labels, add_label!, add_labels!, count_label, add_relation!, add_relations!, insert_relation!, remove_label!, remove_relation!
-export Id, Category, Entire_System
-export id, type, ==
-export contains, has_relation, issuper, issub, super, sub
-export hmdsave, read_system
-export dimension, valence, bond_order, neighbors, all_labels, super_labels, sub_labels, wrap, atom_mass
+    # system core interface
+    AbstractBbox,
+    AbstractSystem,
+    AbstractSystemType,
+    AbstractTrajectory,
+    dimension,
+    precision,
+    system_type,
+    similar,
+    show,
+    natom,
+    nbond,
+    time,
+    set_time!,
+    topology,
+    box,
+    set_box!,
+    all_elements,
+    element,
+    element,
+    set_element!,
+    set_elements!,
+    all_positions,
+    position,
+    set_position!,
+    set_position!,
+    all_travels,
+    travel,
+    set_travel!,
+    wrapped,
+    wrap!,
+    unwrap!,
 
-export AbstractTrajectory, Immutable, Trajectory
-export all_times, all_timesteps, get_timestep, timestep2time, timestep2index, change_points
-export latest_changepoint, add!
-export setproperty!, iterate, getindex, length, read_traj, snapshot
+    # system label manipulation
+    hierarchy_names,
+    hierarchy,
+    add_hierarchy!,
+    remove_hierarchy!,
+    all_labels,
+    add_label!,
+    add_labels!,
+    count_label,
+    add_relation!,
+    add_relations!,
+    insert_relations!,
+    remove_label!,
+    remove_relation!,
+    contains,
+    issuper,
+    issub,
+    super,
+    sub,
 
-export SerializedTopology, PackedHierarchy, serialize, deserialize, close
+    # system io interface
+    AbstractFileFormat,
+    close,
 
+    # trajectory interface
+    get_system,
+    all_timesteps,
+    get_timestep,
+    length,
+    add!,
+    latest_reaction,
+    similar,
+    similar_system,
+    dimension,
+    precision,
+    system_type,
+    wrapped,
+    wrap!,
+    unwrap!,
+    add_snapshot!,
+    import_dynamic!,
+    latest_reaction_step,
+    get_timesteps,
+    get_reactions,
+    get_metadata,
+    is_reaction,
+    length,
+    wrapped,
 
+    # trajectory io interface
+    add_snapshot!,
+    import_dynamic!,
+    latest_reaction_step,
+    get_timesteps,
+    get_reactions,
+    get_metadata,
+    is_reaction,
+    length,
+    wrapped,
+
+    # System highlevel interfaces
+    is_atom,
+    atom_label,
+    add_atom!,
+    add_atoms!,
+    add_bond!,
+    add_bonds!,
+    bond_order,
+    valence,
+    neighbors,
+    l2a,
+    super_labels,
+    sub_labels,
+    hmdsave,
+    read_system,
+
+    # Trajectory highlevel interfaces
+    length,
+    getindex,
+    iterate,
+    similar,
+    iterate,
+    hmdsave,
+    read_traj,
+    snapshot
+
+include("util.jl")
+
+include("HierarchyLabels/HierarchyLabels.jl")
+using .HierarchyLabels
+
+include("interface/interface.jl")
 
 include("DataTypes/DataTypes.jl")
 @reexport using .DataTypes
 
 #import .DataTypes: hmdsave, hmdread!
-include("interface/system.jl")
-include("interface/trajectory.jl")
+include("interface/system_highlevel.jl")
+include("interface/trajectory_highlevel.jl")
 
 #include("GenericIO/GenericIO.jl")
 #using .GenericIO

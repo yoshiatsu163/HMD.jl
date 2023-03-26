@@ -2,16 +2,9 @@ module HierarchyLabels
 
 using Graphs
 using MLStyle
+import Base: getindex, ==, ∈, ∋, ∉, show
 
-#using ..DataTypes: Id, Category, StaticString, name, SerializedCategory
-import ..DataTypes: serialize, deserialize
-
-import Base: getindex
-import Base: ==
-import Base: ∈
-import Base: ∋
-import Base: ∉
-import Base: show
+import ..HMD: serialize, deserialize
 
 export HLabel, H_Label, LabelHierarchy
 export LabelResult, Label_Missing, Label_Occupied, Label_Duplication, Relation_Missing, Relation_Occupied, Success
@@ -22,10 +15,11 @@ export _issuper, _issub, _super_id, _sub_id, _super, _sub
 export _root, _depth
 export PackedHierarchy, serialize, deserialize
 
-# AbstractLabel must define constructor s.t. ALabel(id::Integer, type)
-abstract type AbstractLabel end
+#####
+##### HLabel definition
+#####
 
-struct HLabel <: AbstractLabel
+struct HLabel
     type::String
     id::Int64
 end
@@ -38,7 +32,6 @@ function type(label::HLabel)
     return label.type
 end
 
-#@enum LabelResult Label_Missing=1 Label_Occupied=2 Label_Duplication=3 Relation_Missing=4 Relation_Occupied=5 Success=6
 @data LabelResult begin
     Label_Missing
     Label_Occupied

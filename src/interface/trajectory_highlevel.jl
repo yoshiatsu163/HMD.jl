@@ -74,7 +74,7 @@ function read_traj(name::AbstractString, template::AbstractTrajectory{D, F}) whe
     timesteps = get_timesteps(traj_file)
     reaction_points = get_reactions(traj_file)
     for (step, index) in zip(timesteps, 1:length(traj_file))
-        s = snapshot(traj_file, index, System(template))
+        s = snapshot(traj_file, index, similar_system(template))
         add!(traj, s, step; reaction=(step ∈ reaction_points))
     end
 

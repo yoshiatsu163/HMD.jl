@@ -1,10 +1,9 @@
-export AbstractTrajectory, Immutable, Trajectory
+export Immutable, Trajectory
 export all_timesteps, get_timestep, is_reaction, get_system
 export latest_reaction, latest_reaction_step, add!, update_reader!, add!
 export setproperty!, iterate, getindex, length
 export add_snapshot!, get_timesteps, get_reactions, get_metadata
 
-abstract type AbstractTrajectory{D, F<:AbstractFloat} end
 struct Immutable <: AbstractSystemType end
 
 #use case
@@ -116,7 +115,7 @@ function Base.similar(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloa
     return Trajectory{D, F, SysType}()
 end
 
-function System(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+function similar_system(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     return System{D, F, SysType}()
 end
 
@@ -160,6 +159,30 @@ end
 #####
 ##### Trajectory HDF5 types
 #####
+
+mutable struct H5traj <: AbstractFileFormat
+    file::Union{HDF5.File, HDF5.Group}
+end
+
+function h5traj(name::AbstractString, mode::AbstractString)
+    file_handler = H5traj(h5open(name, mode))
+    file = get_file(file_handler)
+    if mode != "w" && read(file, "infotype") != "Trajectory"
+        close(file_handler)
+        error("file $(name) is not a Trajectory file. ")
+    end
+
+    return file_handler
+end
+
+function close(file_handler::H5traj)
+    close(get_file(file_handler))
+end
+
+function get_file(file_handler::H5traj)
+    return file_handler.file
+end
+
 
 function add_snapshot!(file_handler::H5traj, s::System{D, F, SysType}, step::Int64; reaction::Bool=false, unsafe::Bool=false) where{D, F<:AbstractFloat, SysType<:AbstractSystemType}
     file = get_file(file_handler)
