@@ -59,6 +59,25 @@ mutable struct H5system <: AbstractFileFormat
     file::Union{HDF5.File, HDF5.Group}
 end
 
+function h5system(name::AbstractString, mode::AbstractString)
+    file_handler = H5system(h5open(name, mode))
+    file = get_file(file_handler)
+    if mode != "w" && read(file, "infotype") != "System"
+        close(file_handler)
+        error("file $(name) is not a System file. ")
+    end
+
+    return file_handler
+end
+
+function close(file_handler::H5system)
+    close(get_file(file_handler))
+end
+
+function get_file(file_handler::H5system)
+    return file_handler.file
+end
+
 function hmdsave(file_handler::H5system, s::System{D, F, SysType}; compress=false) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     if compress
         println("warning: compression is not supported yet.")
@@ -106,7 +125,8 @@ end
 function read_system(system_file::H5system, template::System{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     # metadata check
     D_file, F_file, SysType_file = get_metadata(system_file)
-    if (D_file, F_file) != (D, string(F))
+    if (D_file, F_file) != (D, F)
+        close(system_file)
         error("System type mismatch. (file: $(D_file), $(F_file), $(SysType_file), system: $(D), $(F), $(SysType)")
     end
 
@@ -123,6 +143,7 @@ function import_dynamic!(s::System{D, F, SysType}, system_file::H5system) where 
     set_box!(s, BoundingBox{D, F}(read(file, "box/origin"), read(file, "box/axis")))
     s.position = deserialize(D, read(file, "position"))
     s.travel = deserialize(D, read(file, "travel"))
+    s.wrapped = read(file, "wrapped")
 
     return nothing
 end
@@ -130,7 +151,6 @@ end
 function import_static!(s::System{D, F, SysType}, system_file::H5system) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     file = get_file(system_file)
     s.element = deserialize(read(file, "element/chars"), read(file, "element/bounds"))
-    s.wrapped = read(file, "wrapped")
     s.topology = SerializedTopology(read(file, "topology/num_node"),
                                     read(file, "topology/edges_org"),
                                     read(file, "topology/edges_dst"),

@@ -9,7 +9,7 @@ using SimpleWeightedGraphs
 using StaticArrays
 using Unitful
 
-import Base: getindex, setproperty!, iterate, length, precision, close, string, show, showerror
+import Base: getindex, firstindex, lastindex, setproperty!, iterate, length, precision, close, string, show, showerror
 import Base: >, <, >=, <=, +, -, *, /, ==, position
 import Base: position, time, contains, promote_type, promote_rule, similar
 import Graphs: neighbors
@@ -82,6 +82,8 @@ export
     get_timestep,
     length,
     add!,
+    import_dynamic!,
+    import_static!,
     latest_reaction,
     similar,
     similar_system,
@@ -92,7 +94,6 @@ export
     wrap!,
     unwrap!,
     add_snapshot!,
-    import_dynamic!,
     latest_reaction_step,
     get_timesteps,
     get_reactions,
@@ -104,6 +105,7 @@ export
     # trajectory io interface
     add_snapshot!,
     import_dynamic!,
+    import_static!,
     latest_reaction_step,
     get_timesteps,
     get_reactions,
@@ -131,6 +133,8 @@ export
     # Trajectory highlevel interfaces
     length,
     getindex,
+    firstindex,
+    lastindex,
     iterate,
     similar,
     iterate,

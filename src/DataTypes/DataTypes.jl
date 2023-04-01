@@ -21,7 +21,7 @@ using StaticArrays
 
 using ..HierarchyLabels
 
-@reexport import Base: *, +, -, /, <, <=, ==, >, >=, close, contains, convert, getindex, iterate,
+@reexport import Base: *, +, -, /, <, <=, ==, >, >=, close, contains, convert, getindex,firstindex, lastindex, iterate,
     length, position, precision, promote_rule, promote_type, setproperty!, show, similar,
     string, time, ∈, ∉
 
@@ -90,6 +90,8 @@ using ..HierarchyLabels
     get_timestep,
     length,
     add!,
+    import_dynamic!,
+    import_static!,
     latest_reaction,
     similar,
     similar_system,
@@ -100,24 +102,30 @@ using ..HierarchyLabels
     wrap!,
     unwrap!,
     add_snapshot!,
-    import_dynamic!,
     latest_reaction_step,
     get_timesteps,
     get_reactions,
     get_metadata,
     is_reaction,
     length,
+    getindex,
+    lastindex,
+    firstindex,
     wrapped,
 
     # trajectory io interface
     add_snapshot!,
     import_dynamic!,
+    import_static!,
     latest_reaction_step,
     get_timesteps,
     get_reactions,
     get_metadata,
     is_reaction,
     length,
+    getindex,
+    lastindex,
+    firstindex,
     wrapped
 
 # core subtype signature
@@ -205,7 +213,7 @@ end
 
 function natom(s::System)
     natm = length(s.position)
-    @assert natm == length(s.element)
+    #@assert natm == length(s.element)
     return length(s.position)
 end
 

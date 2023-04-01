@@ -1,4 +1,4 @@
-function Base.getindex(traj::AbstractTrajectory{D, F}, index::Integer) where {D, F<:AbstractFloat}
+function getindex(traj::AbstractTrajectory{D, F}, index::Integer) where {D, F<:AbstractFloat}
     if !(0 < index <= length(traj))
         throw(BoundsError(traj, index))
     end
@@ -11,15 +11,24 @@ function Base.getindex(traj::AbstractTrajectory{D, F}, index::Integer) where {D,
     replica.hierarchy = deepcopy(rp.hierarchy)
 
     # set properties that changes at every step
-    set_time!(replica, time(s))
-    set_box!(replica, deepcopy(box(rp)))
-    replica.position = all_positions(rp) |> deepcopy
-    replica.travel = deepcopy(rp.travel)
+    current = get_system(traj, index)
+    set_time!(replica, time(replica))
+    set_box!(replica, deepcopy(box(current)))
+    replica.position = all_positions(current) |> deepcopy
+    replica.travel = deepcopy(current.travel)
 
     # others
-    replica.wrapped = rp.wrapped
+    replica.wrapped = current.wrapped
 
     return replica
+end
+
+function firstindex(traj::AbstractTrajectory)
+    return 1
+end
+
+function lastindex(traj::AbstractTrajectory)
+    return length(traj)
 end
 
 #function Base.setproperty!(s::System{D, F, Immutable}, fieldname::Symbol) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
@@ -78,7 +87,6 @@ function read_traj(name::AbstractString, template::AbstractTrajectory{D, F}) whe
         add!(traj, s, step; reaction=(step ∈ reaction_points))
     end
 
-
     return traj
 end
 
@@ -129,7 +137,7 @@ function Base.iterate(traj_file::H5traj, state::Tuple{Int64, Vector{Int64}, Vect
         reader.topology = static_cache.topology
         reader.hierarchy = static_cache.hierarchy
     end
-    DataTypes.import_dynamic!(reader, traj_file, index; step=timesteps[index])
+    DataTypes.import_dynamic!(reader, traj_file; step=timesteps[index])
 
     return (step=timesteps[index], reader=reader), (index+1, reaction_steps, timesteps, static_cache)
 end

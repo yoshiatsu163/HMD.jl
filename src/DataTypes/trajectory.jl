@@ -107,16 +107,23 @@ function latest_reaction(traj::Trajectory{D, F, SysType}, index::Integer) where 
     return traj.is_reaction[ii]
 end
 
-function is_reaction(s::AbstractSystem)
-    return all_positions(s) |> isempty
-end
+#function is_reaction(s::System)
+#    return all_elements(s) |> isempty
+#end
 
 function Base.similar(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     return Trajectory{D, F, SysType}()
 end
 
-function similar_system(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
-    return System{D, F, SysType}()
+function similar_system(traj::Trajectory{D, F, SysType}; reserve_dynamic=false, reserve_static=false) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    s = System{D, F, SysType}()
+    if reserve_dynamic
+        import_dynamic!(s, traj, 1)
+    elseif reserve_static
+        import_static!(s, traj, 1)
+    end
+
+    return s
 end
 
 function dimension(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
@@ -132,8 +139,9 @@ function system_type(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat
 end
 
 function wrapped(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
-    @assert all(i -> wrapped(traj.systems[i]), 1:length(traj))
-    return traj.systems[1].wrapped
+    is_wrapped = wrapped(traj.systems[1])
+    @assert all(i -> wrapped(traj.systems[i]) == is_wrapped, 1:length(traj))
+    return is_wrapped
 end
 
 function wrap!(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
@@ -182,7 +190,6 @@ end
 function get_file(file_handler::H5traj)
     return file_handler.file
 end
-
 
 function add_snapshot!(file_handler::H5traj, s::System{D, F, SysType}, step::Int64; reaction::Bool=false, unsafe::Bool=false) where{D, F<:AbstractFloat, SysType<:AbstractSystemType}
     file = get_file(file_handler)
