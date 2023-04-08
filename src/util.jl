@@ -1,3 +1,11 @@
+function oblique_coord(x::AbstractVector, origin, axis)
+    # x = α * axis[:, 1] + β * axis[:, 2] + γ * axis[:, 3]
+    x_oblique = similar(x)
+    x_oblique .= x .- origin
+
+    return ([axis[:, 1], axis[:, 2], axis[:, 3]] \ x_oblique) .+ origin
+end
+
 # serialization for data storage
 
 """

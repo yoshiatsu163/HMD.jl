@@ -6,7 +6,7 @@ import Base: getindex, ==, ∈, ∋, ∉, show
 
 import ..HMD: serialize, deserialize
 
-export HLabel, H_Label, LabelHierarchy
+export HLabel, H_Label, LabelHierarchy, _labels
 export LabelResult, Label_Missing, Label_Occupied, Label_Duplication, Relation_Missing, Relation_Occupied, Success
 export id, type, ==
 export _add_label!, _add_labels!, _add_relation!, _remove_label!, _remove_relation!
@@ -233,20 +233,12 @@ end
 
 function _super(lh::LabelHierarchy, label::HLabel)
     super_ids = _super_id(lh, label)
-    if isempty(super_ids)
-        return Vector{HLabel}(undef, 0)
-    else
-        return view(_labels(lh), super_ids)
-    end
+    return view(_labels(lh), super_ids)
 end
 
 function _sub(lh::LabelHierarchy, label::HLabel)
     sub_ids = _sub_id(lh, label)
-    if isempty(sub_ids)
-        return Vector{HLabel}(undef, 0)
-    else
-        return view(_labels(lh), sub_ids)
-    end
+    return view(_labels(lh), sub_ids)
 end
 
 function _issuper(lh::LabelHierarchy, lhs::HLabel, rhs::HLabel)
@@ -355,6 +347,8 @@ function deserialize(ph::PackedHierarchy)
 
     return lh
 end
+
+
 
 include("test.jl")
 

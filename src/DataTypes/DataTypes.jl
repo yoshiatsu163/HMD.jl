@@ -59,6 +59,7 @@ using ..HierarchyLabels
     wrapped,
     wrap!,
     unwrap!,
+    label2atom,
 
     # system label manipulation
     hierarchy_names,
@@ -153,7 +154,7 @@ include("boundingbox.jl")
 
 struct GeneralSystem <: AbstractSystemType end
 
-mutable struct System{D, F<:AbstractFloat, SysType<:AbstractSystemType} <: AbstractSystem{D, F}
+mutable struct System{D, F<:AbstractFloat, SysType<:AbstractSystemType} <: AbstractSystem{D, F, SysType}
     time::F
     topology::SimpleWeightedGraph{Int64, Rational{BO_Precision}}
     box::BoundingBox{D, F}
@@ -385,6 +386,36 @@ function unwrap!(s::System)
     _change_wrap!(s)
 
     return nothing
+end
+
+function label2atom(s::System, hname::AbstractString, label::HLabel)
+    lh = hierarchy(s, hname)
+    labels = _labels(lh)
+    atom_ids = Int64[]
+
+    stack = [_get_nodeid(lh, label)]
+    if is_atom(labels[stack[1]])
+        return [stack[1]]
+    end
+
+    while !isempty(stack)
+        current_node = popfirst!(stack)
+        next_nodes = _sub_id(lh, current_node)
+        for node in next_nodes
+            label = labels[node]
+            if is_atom(label)
+                push!(atom_ids, id(label))
+            else
+                pushfirst!(stack, node)
+            end
+        end
+    end
+
+    return atom_ids
+end
+
+function is_atom(label::HLabel)
+    return type(label) == ""
 end
 
 include("label_manipulation.jl")

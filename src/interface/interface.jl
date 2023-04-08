@@ -14,10 +14,9 @@ end
 
 _NI(m) = throw(NotImplementedError(m))
 
-
-abstract type AbstractSystem{D, F<:AbstractFloat} end
 abstract type AbstractSystemType end
-abstract type AbstractTrajectory{D, F<:AbstractFloat} end
+abstract type AbstractSystem{D, F<:AbstractFloat, SysType<:AbstractSystemType} end
+abstract type AbstractTrajectory{D, F<:AbstractFloat, SysType<:AbstractSystemType} end
 abstract type AbstractBbox{D, F<:AbstractFloat} end
 
 # system core interface
@@ -48,6 +47,7 @@ set_travel!(s::AbstractSystem, atom_id::Integer, n::AbstractVector{<:Integer}) =
 wrapped(s::AbstractSystem) = _NI("wrapped")
 wrap!(s::AbstractSystem) = _NI("wrap!")
 unwrap!(s::AbstractSystem) = _NI("unwrap!")
+label2atom(s::AbstractSystem, hname::AbstractString, label::HLabel) = _NI("label2atom")
 
 # system label manipulation
 hierarchy_names(s::AbstractSystem) = _NI("hierarchy_names")
@@ -90,7 +90,7 @@ import_dynamic!(reader::AbstractSystem, traj::AbstractTrajectory, index::Integer
 import_static!(reader::AbstractSystem, traj::AbstractTrajectory, index::Integer) = _NI("import_static!")
 latest_reaction(traj::AbstractTrajectory, index::Integer) = _NI("latest_reaction")
 similar(traj::AbstractTrajectory) = _NI("similar")
-similar_system(traj::AbstractTrajectory) = _NI("System")
+similar_system(traj::AbstractTrajectory; reserve_dynamic::Bool=false, reserve_static::Bool=false) = _NI("similar_system")
 dimension(traj::AbstractTrajectory) = _NI("dimension")
 precision(traj::AbstractTrajectory) = _NI("precision")
 system_type(traj::AbstractTrajectory) = _NI("system_type")
@@ -109,3 +109,4 @@ get_metadata(traj_file::AbstractFileFormat) = _NI("get_metadata")
 is_reaction(traj_file::AbstractFileFormat, index::Integer) = _NI("is_reaction")
 length(traj_file::AbstractFileFormat) = _NI("length")
 wrapped(traj_file::AbstractFileFormat) = _NI("wrapped")
+similar_system(traj_file::AbstractFileFormat) = _NI("similar_system")

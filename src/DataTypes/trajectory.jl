@@ -1,10 +1,8 @@
-export Immutable, Trajectory
+export Trajectory
 export all_timesteps, get_timestep, is_reaction, get_system
 export latest_reaction, latest_reaction_step, add!, update_reader!, add!
 export setproperty!, iterate, getindex, length
 export add_snapshot!, get_timesteps, get_reactions, get_metadata
-
-struct Immutable <: AbstractSystemType end
 
 #use case
 # 原子位置情報の追跡
@@ -16,7 +14,7 @@ struct Immutable <: AbstractSystemType end
 # -> 2を採用(2の内部で結局1と同じことを実行する)
 
 
-Base.@kwdef mutable struct Trajectory{D, F<:AbstractFloat, SysType<:AbstractSystemType} <: AbstractTrajectory{D, F}
+Base.@kwdef mutable struct Trajectory{D, F<:AbstractFloat, SysType<:AbstractSystemType} <: AbstractTrajectory{D, F, SysType}
     # Vector of System. Properties which does not changes at evety timestep are empty except for reactions.
     systems::Vector{System{D, F, SysType}} = System{D, F, SysType}[]
     # indices corresponding to reactions (not timestep!)
@@ -117,6 +115,7 @@ end
 
 function similar_system(traj::Trajectory{D, F, SysType}; reserve_dynamic=false, reserve_static=false) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     s = System{D, F, SysType}()
+
     if reserve_dynamic
         import_dynamic!(s, traj, 1)
     elseif reserve_static
@@ -321,4 +320,10 @@ end
 function wrapped(traj_file::H5traj)
     file = get_file(traj_file)
     return read(file, "wrapped")
+end
+
+function similar_system(traj_file::H5traj)
+    D, F, SysType = get_metadata(traj_file)
+    SysType = SysType |> Symbol |> eval
+    return System{D, F, SysType}()
 end

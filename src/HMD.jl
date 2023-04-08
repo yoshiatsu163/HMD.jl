@@ -14,6 +14,12 @@ import Base: >, <, >=, <=, +, -, *, /, ==, position
 import Base: position, time, contains, promote_type, promote_rule, similar
 import Graphs: neighbors
 
+# utility
+export oblique_coord
+
+# LabelHierarchy
+export HLabel, LabelHierarchy, id, type
+
 export
     # System constants
     Entire_System,
@@ -51,6 +57,7 @@ export
     wrapped,
     wrap!,
     unwrap!,
+    label2atom,
 
     # system label manipulation
     hierarchy_names,

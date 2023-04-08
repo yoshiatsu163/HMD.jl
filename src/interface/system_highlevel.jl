@@ -1,15 +1,16 @@
 const Entire_System = HLabel("entire_system", 1)
 
-const atom_mass = Dict{String, Float64}(
-    elements[:H ].symbol => 1.008,
-    elements[:C ].symbol => 12.012,
-    elements[:N ].symbol => 14.007,
-    elements[:O ].symbol => 16.000,
-    elements[:F ].symbol => 19.000,
-    elements[:Si].symbol => 28.086,
-    elements[:S ].symbol => 32.067,
-    elements[:Cl].symbol => 35.453
-)
+#const atom_mass = Dict{String, Float64}(
+#    elements[:H ].symbol => 1.008,
+#    elements[:C ].symbol => 12.012,
+#    elements[:N ].symbol => 14.007,
+#    elements[:O ].symbol => 16.000,
+#    elements[:F ].symbol => 19.000,
+#    elements[:Si].symbol => 28.086,
+#    elements[:S ].symbol => 32.067,
+#    elements[:Cl].symbol => 35.453
+#)
+const atom_mass = Dict{String, Float64}(elements[i].symbol => ustrip(elements[i].atomic_mass) for i in 1:length(elements))
 
 function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::AbstractString; super::HLabel)
     atom_id = natom(s) + 1
@@ -183,7 +184,7 @@ end
 ##### System HDF5 interface
 #####
 
-function hmdsave(name::AbstractString, s::AbstractSystem{D, F}; compress=false) where {D, F<:AbstractFloat}
+function hmdsave(name::AbstractString, s::AbstractSystem{D, F, SysType}; compress=false) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     file = h5system(name, "w")
     DataTypes.hmdsave(file, s; compress=compress)
     close(file)
@@ -191,7 +192,7 @@ function hmdsave(name::AbstractString, s::AbstractSystem{D, F}; compress=false) 
     return nothing
 end
 
-function read_system(name::AbstractString, template::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
+function read_system(name::AbstractString, template::AbstractSystem{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     file = h5system(name, "r")
     s = DataTypes.read_system(file, template)
     close(file)

@@ -1,9 +1,16 @@
-function getindex(traj::AbstractTrajectory{D, F}, index::Integer) where {D, F<:AbstractFloat}
+"""
+highlevelの引数をすべて具象型にすべきか？
+    ・具象型で書き直すと新しい具象型を定義したときに再実装量が増える
+    ・抽象型のままにしておく場合はinterfaceでNIを定義する意味が無い
+iteratorをlowlevelに落とすことを検討
+"""
+
+function getindex(traj::AbstractTrajectory{D, F, SysType}, index::Integer) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     if !(0 < index <= length(traj))
         throw(BoundsError(traj, index))
     end
 
-    replica = System{D, F, Immutable}()
+    replica = similar_system(traj)
     # set properties that changes only at reaction
     rp = get_system(traj, latest_reaction(traj, index))
     replica.element = all_elements(rp) |> deepcopy
@@ -23,6 +30,28 @@ function getindex(traj::AbstractTrajectory{D, F}, index::Integer) where {D, F<:A
     return replica
 end
 
+function Base.iterate(traj::AbstractTrajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    index = 1
+    reader = similar_system(traj)
+    DataTypes.import_dynamic!(reader, traj, index)
+    DataTypes.import_static!(reader, traj, index)
+
+    return (step=get_timestep(traj, index), reader=reader), index+1
+end
+
+function Base.iterate(traj::AbstractTrajectory{D, F, SysType}, state::Int64) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    index = state
+    if index <= length(traj)
+        reader = similar_system(traj)
+        rp = latest_reaction(traj, index)
+        DataTypes.import_static!(reader, traj, rp)
+        DataTypes.import_dynamic!(reader, traj, index)
+        return (step=get_timestep(traj, index), reader=reader), index+1
+    else
+        return nothing
+    end
+end
+
 function firstindex(traj::AbstractTrajectory)
     return 1
 end
@@ -35,33 +64,11 @@ end
 #    error("""This type $(typeof(s)) is intended to be read-only. If you want to mutate some data in trajectory, "s = traj[i]" makes a deepcopy. """)
 #end
 
-function Base.iterate(traj::AbstractTrajectory{D, F}) where {D, F<:AbstractFloat}
-    index = 1
-    reader = System{D, F, Immutable}()
-    DataTypes.import_dynamic!(reader, traj, index)
-    DataTypes.import_static!(reader, traj, index)
-
-    return (step=get_timestep(traj, index), reader=reader), index+1
-end
-
-function Base.iterate(traj::AbstractTrajectory{D, F}, state::Int64) where {D, F<:AbstractFloat}
-    index = state
-    if index <= length(traj)
-        reader = System{D, F, Immutable}()
-        rp = latest_reaction(traj, index)
-        DataTypes.import_static!(reader, traj, rp)
-        DataTypes.import_dynamic!(reader, traj, index)
-        return (step=get_timestep(traj, index), reader=reader), index+1
-    else
-        return nothing
-    end
-end
-
 #####
 ##### Trajectory HDF5 interface
 #####
 
-function hmdsave(name::AbstractString, traj::AbstractTrajectory{D, F}) where {D, F<:AbstractFloat}
+function hmdsave(name::AbstractString, traj::AbstractTrajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     file_handler = h5traj(name, "w")
     index = 1
     for reader in traj
@@ -71,7 +78,7 @@ function hmdsave(name::AbstractString, traj::AbstractTrajectory{D, F}) where {D,
     close(file_handler)
 end
 
-function read_traj(name::AbstractString, template::AbstractTrajectory{D, F}) where {D, F<:AbstractFloat}
+function read_traj(name::AbstractString, template::AbstractTrajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     traj_file = h5traj(name, "r")
 
     D_file, F_file, SysType_file = get_metadata(traj_file)
@@ -90,7 +97,7 @@ function read_traj(name::AbstractString, template::AbstractTrajectory{D, F}) whe
     return traj
 end
 
-function snapshot(traj_file::H5traj, index::Integer, template::AbstractSystem{D, F}) where {D, F<:AbstractFloat}
+function snapshot(traj_file::AbstractFileFormat, index::Integer, template::AbstractSystem{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     D_file, F_file, SysType_file = get_metadata(traj_file)
     if (D_file, F_file) != (D, F)
         error("Trajectory file $(name) is not compatible with the template $(template).")
@@ -105,15 +112,14 @@ function snapshot(traj_file::H5traj, index::Integer, template::AbstractSystem{D,
     return s
 end
 
-function Base.iterate(traj_file::H5traj)
+function Base.iterate(traj_file::AbstractFileFormat)
     index = 1
 
     # timestep at reaction (not index!)
     reaction_steps = get_reactions(traj_file)
     timesteps = get_timesteps(traj_file)
 
-    D, F, stub = get_metadata(traj_file)
-    reader = System{D, F, Immutable}()
+    reader = similar_system(traj_file)
     DataTypes.import_static!(reader, traj_file, step=timesteps[index])
     static_cache = deepcopy(reader)
     DataTypes.import_dynamic!(reader, traj_file, step=timesteps[index])
@@ -121,13 +127,13 @@ function Base.iterate(traj_file::H5traj)
     return (step=timesteps[index], reader=reader), (index+1, reaction_steps, timesteps, static_cache)
 end
 
-function Base.iterate(traj_file::H5traj, state::Tuple{Int64, Vector{Int64}, Vector{Int64}, System{D, F, Immutable}}) where {D, F<:AbstractFloat}
+function Base.iterate(traj_file::AbstractFileFormat, state::Tuple{Int64, Vector{Int64}, Vector{Int64}, S}) where {S<:AbstractSystem}
     index, reaction_steps, timesteps, static_cache = state
     if index > length(traj_file)
         return nothing
     end
 
-    reader = System{D, F, Immutable}()
+    reader = similar(static_cache)
     if timesteps[index] ∈ reaction_steps
         DataTypes.import_static!(reader, traj_file; step=timesteps[index])
         static_cache = deepcopy(reader)
