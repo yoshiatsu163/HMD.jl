@@ -10,7 +10,6 @@ const Entire_System = HLabel("entire_system", 1)
 #    elements[:S ].symbol => 32.067,
 #    elements[:Cl].symbol => 35.453
 #)
-const atom_mass = Dict{String, Float64}(elements[i].symbol => ustrip(elements[i].atomic_mass) for i in 1:length(elements))
 
 function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::AbstractString; super::HLabel)
     atom_id = natom(s) + 1
@@ -25,7 +24,7 @@ function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::
     return nothing
 end
 
-function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:AbstractFloat}}, elem::AbstractVector{<:AbstractString}; super::HLabel)
+function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:AbstractFloat}}, elem::AbstractVector{<:Integer}; super::HLabel)
     if length(elem) != length(x)
         error("length of elem and x must be same. ")
     end

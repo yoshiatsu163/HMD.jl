@@ -100,9 +100,10 @@ function hmdsave(file_handler::H5system, s::System{D, F, SysType}; compress=fals
     file["box/origin"] = Vector(box(s).origin)
     file["box/axis"] = Matrix(box(s).axis)
 
-    chars, bounds = serialize(all_elements(s))
-    file["element/chars"]  = chars
-    file["element/bounds"] = bounds
+    #chars, bounds = serialize(all_elements(s))
+    #file["element/chars"]  = chars
+    #file["element/bounds"] = bounds
+    file["element"] = all_elements(s)
 
     stopo = serialize(topology(s))
     for fname in fieldnames(SerializedTopology)
@@ -150,7 +151,8 @@ end
 
 function import_static!(s::System{D, F, SysType}, system_file::H5system) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     file = get_file(system_file)
-    s.element = deserialize(read(file, "element/chars"), read(file, "element/bounds"))
+    #s.element = deserialize(read(file, "element/chars"), read(file, "element/bounds"))
+    s.element = read(file, "element")
     s.topology = SerializedTopology(read(file, "topology/num_node"),
                                     read(file, "topology/edges_org"),
                                     read(file, "topology/edges_dst"),

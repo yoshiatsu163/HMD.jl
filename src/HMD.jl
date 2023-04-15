@@ -7,7 +7,7 @@ using PeriodicTable
 using Reexport
 using SimpleWeightedGraphs
 using StaticArrays
-using Unitful
+#using Unitful
 
 import Base: getindex, firstindex, lastindex, setproperty!, iterate, length, precision, close, string, show, showerror
 import Base: >, <, >=, <=, +, -, *, /, ==, position
@@ -23,7 +23,6 @@ export HLabel, LabelHierarchy, id, type
 export
     # System constants
     Entire_System,
-    atom_mass,
 
     # system core interface
     AbstractBbox,

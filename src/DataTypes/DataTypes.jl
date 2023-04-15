@@ -18,6 +18,7 @@ using PeriodicTable
 using Reexport
 using SimpleWeightedGraphs
 using StaticArrays
+using Unitful
 
 using ..HierarchyLabels
 
@@ -140,10 +141,13 @@ export H5system, H5traj, SerializedTopology, PackedHierarchy
 export h5system, h5traj, get_file
 
 #constants
-export Entire_System, BO_Precision
+export Entire_System, BO_Precision, atom_mass
 
 const Entire_System = HLabel("entire_system", 1)
 const BO_Precision = Int8
+
+const Atomic_Number_Precision = Int8
+const atom_mass = Dict(i => ustrip(elements[i].atomic_mass) for i in 1:length(elements))
 
 include("position.jl")
 include("boundingbox.jl")
@@ -163,7 +167,7 @@ mutable struct System{D, F<:AbstractFloat, SysType<:AbstractSystemType} <: Abstr
     position::Position{D, F}
     travel::Vector{SVector{D, Int16}}
     wrapped::Bool
-    element::Vector{String}
+    element::Vector{Atomic_Number_Precision}
 
     hierarchy::Dict{String, LabelHierarchy}
     props::Dict{String, Dict{HLabel, Any}}
@@ -177,7 +181,7 @@ function System{D, F, SysType}() where {D, F<:AbstractFloat, SysType<:AbstractSy
         Position{D, F}(),
         Vector{SVector{D, Int16}}(undef, 0),
         false,
-        String[],
+        Atomic_Number_Precision[],
         Dict{String, LabelHierarchy}(),
         Dict{String, Dict{HLabel, Any}}()
     )
@@ -250,32 +254,23 @@ function element(s::System, atom_id::Integer)
     s.element[atom_id]
 end
 
-function element(s::System, label::HLabel)
-    if !is_atom(label)
-        error("label $label is not for atom. ")
+function _add_element!(s::System, atomic_number::Integer)
+    _add_element!(s, atomic_number)
+end
+
+function _add_elements!(s::System, atomic_numbers::AbstractVector{<:Integer})
+    append!(s.element, atomic_numbers)
+end
+
+function set_element!(s::System, atom_id::Integer, atomic_number::Integer)
+    s.element[atom_id] = atomic_number
+end
+
+function set_elements!(s::System, atom_ids::AbstractVector{<:Integer}, atomic_numbers::AbstractVector{<:Integer})
+    if length(atom_ids) != length(atomic_numbers)
+        throw(DimensionMismatch("Dimension of atom_ids is $(length(atom_ids)) but atomic_numbers dimension is $(length(atomic_numbers))"))
     end
-    s.element[atom_id]
-
-    return nothing
-end
-
-function _add_element!(s::System, ename::AbstractString)
-    _add_element!(s, ename)
-end
-
-function _add_elements!(s::System, enames::AbstractVector{<:AbstractString})
-    append!(s.element, enames)
-end
-
-function set_element!(s::System, atom_id::Integer, ename::AbstractString)
-    s.element[atom_id] = ename
-end
-
-function set_elements!(s::System, atom_ids::AbstractVector{<:Integer}, enames::AbstractVector{<:AbstractString})
-    if length(atom_ids) != length(enames)
-        throw(DimensionMismatch("Dimension of atom_ids is $(length(atom_ids)) but enames dimension is $(length(enames))"))
-    end
-    s.element[atom_ids] .= enames
+    s.element[atom_ids] .= atomic_numbers
 end
 
 function all_positions(s::System)
