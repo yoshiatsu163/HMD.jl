@@ -23,6 +23,7 @@ export HLabel, LabelHierarchy, id, type
 export
     # System constants
     Entire_System,
+    Atom_Label,
 
     # system core interface
     AbstractBbox,

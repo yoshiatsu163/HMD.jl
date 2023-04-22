@@ -56,10 +56,10 @@ function add_label!(s::System, hname::AbstractString, label_type::AbstractString
     end
 end
 
-function add_labels!(s::System, hname::AbstractString, label_types::AbstractVector{<:HLabel})
+function add_labels!(s::System, hname::AbstractString, labels::AbstractVector{HLabel})
     lh = hierarchy(s, hname)
 
-    _add_labels!(lh, label_types)
+    _add_labels!(lh, labels)
 
     return nothing
 end

@@ -12,7 +12,7 @@ export id, type, ==
 export _add_label!, _add_labels!, _add_relation!, _remove_label!, _remove_relation!
 export _label2node, _contains, ∈, ∋, ∉, _has_relation ,_get_nodeid, getindex
 export _issuper, _issub, _super_id, _sub_id, _super, _sub
-export _root, _depth
+export _root, _depth, _merge_hierarchy
 export PackedHierarchy, serialize, deserialize
 
 #####
@@ -296,6 +296,37 @@ function _depth(lh::LabelHierarchy)
 
     # excluding atom label
     return depth - 1
+end
+
+function _merge_hierarchy!(addend::LabelHierarchy, augend::LabelHierarchy; augend_parent::HLabel, addend_parent::HLabel)
+    # addend_parent自身とその上位ノードはマージから除外する
+    exception = Tuple((_get_nodeid(addend, addend_parent), _super_id(addend, addend_parent)...))
+
+    # merge graph
+    g_augend, g_addend = _hierarchy(augend), _hierarchy(addend)
+    node_id = nv(g_augend) + 1
+    add_vertices!(g_augend, nv(g_addend) - length(exception))
+    resize!(_labels(augend), nv(g_augend))
+    new_ids = Int64[]
+    for edge in edges(g_addend)
+        if src(edge) ∉ exception && dst(edge) ∉ exception
+            src_id = node_id
+            dst_id = node_id + 1
+            src_label = _get_label(addend, src(edge))
+            dst_label = _get_label(addend, dst(edge))
+            add_edge!(g_augend, src_id, dst_id)
+            _labels(augend)[src_id] = src_label
+            _labels(augend)[dst_id] = dst_label
+            push!(_labels2node(augend), src_label => src_id)
+            push!(_labels2node(augend), dst_label => dst_id)
+            push!(new_ids, src_id)
+            push!(new_ids, dst_id)
+            node_id += 2
+        end
+    end
+    _add_relation!(g_augend; super=augend_parent, sub=_sub(addend, addend_parent))
+
+    return new_ids
 end
 
 struct PackedHierarchy

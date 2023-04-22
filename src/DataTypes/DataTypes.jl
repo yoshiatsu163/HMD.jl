@@ -29,6 +29,7 @@ using ..HierarchyLabels
 @reexport import ..HMD: deserialize, serialize
 @reexport import ..HMD:
     # system core interface
+    Atom_Label,
     AbstractBbox,
     AbstractSystem,
     AbstractSystemType,
@@ -45,6 +46,7 @@ using ..HierarchyLabels
     topology,
     box,
     set_box!,
+    element_type,
     all_elements,
     element,
     element,
@@ -73,6 +75,7 @@ using ..HierarchyLabels
     count_label,
     add_relation!,
     add_relations!,
+    insert_relation!,
     insert_relations!,
     remove_label!,
     remove_relation!,
@@ -144,6 +147,7 @@ export h5system, h5traj, get_file
 export Entire_System, BO_Precision, atom_mass
 
 const Entire_System = HLabel("entire_system", 1)
+const Atom_Label = ""
 const BO_Precision = Int8
 
 const Atomic_Number_Precision = Int8
@@ -244,6 +248,10 @@ end
 
 function set_box!(s::System, box::BoundingBox)
     s.box = box
+end
+
+function element_type(s::System)
+    return Atomic_Number_Precision
 end
 
 function all_elements(s::System)
@@ -418,5 +426,48 @@ include("property.jl")
 include("system_io.jl")
 include("trajectory.jl")
 include("test.jl")
+
+function merge!(
+    augend::System{D, F, SysType1}, addend::System{D, F, SysType2};
+    augend_parent::HLabel, addend_parent::HLabel
+) where {D, F<:AbstractFloat, SysType1<:AbstractSystemType, SysType2<:AbstractSystemType}
+    # wrap check
+    wrapped(augend) != wrapped(addend) && error("augend and addend must have same wrap status. ")
+
+    # add new atoms to augend
+    augend_ids = natom(augend)+1 : natom(augend)+natom(addend)
+    append!(augend.position, all_positions(addend))
+    append!(augend.element, all_elements(addend))
+
+    merge_topology!(topology(augend), topology(addend))
+
+    for hname in hierarchy_names(augend)
+        lh_augend, lh_addend = hierarchy(augend, hname, augend_parent), hierarchy(addend, hname, addend_parent)
+        appended_nodes = _merge_hierarchy!(lh_augend, lh_addend; augend_parent=augend_parent, addend_parent=addend_parent)
+
+        # hierarchyに新たに追加されたラベルのからatom_labelを検索し，ラベルのidを更新する
+        for node_id in appended_nodes
+            label = _labels(lh_augend)[node_id]
+            if is_atom(label)
+                # id(label)はaddendの原子idであるためこれをaugendの原子idに変換する
+                _labels(lh_augend)[node_id] = Label(Atom_Label, augend_ids[id(label)])
+            end
+        end
+    end
+
+    return nothing
+end
+
+function merge_topology!(addend::SimpleWeightedDiGraph, augend::SimpleWeightedDiGraph)
+    id_mapping = nv(augend)+1 : nv(augend)+nv(addend)
+    add_vertices!(augend, nv(addend))
+    for edge in edges(addend)
+        addend_id1, addend_id2 = src(edge), dst(edge)
+        weight = get_weight(topo_addend, addend_id1, addend_id2)
+        add_edge!(topo_augend, id_mapping[src(edge)], id_mapping[dst(edge)], weight)
+    end
+
+    return nothing
+end
 
 end #module
