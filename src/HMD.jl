@@ -15,7 +15,7 @@ import Base: position, time, contains, promote_type, promote_rule, similar
 import Graphs: neighbors
 
 # utility
-export oblique_coord
+export oblique_coord, atom_label
 
 # LabelHierarchy
 export HLabel, LabelHierarchy, id, type
@@ -44,11 +44,14 @@ export
     set_box!,
     all_elements,
     element,
-    element,
+    add_element!,
+    add_elements!,
     set_element!,
     set_elements!,
     all_positions,
     position,
+    add_position!,
+    add_positions!,
     set_position!,
     set_position!,
     all_travels,

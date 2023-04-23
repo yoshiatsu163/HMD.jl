@@ -98,7 +98,7 @@ function insert_relation!(s::System, hname::AbstractString, label::HLabel; super
     add_label!(s, hname, label)
     add_relation!(s, hname; super=super, sub=label)
     add_relation!(s, hname; super=label, sub=sub)
-    @assert _remove_relation!(lh, super, sub)
+    _remove_relation!(lh, super, sub)
 
     return nothing
 end
@@ -109,7 +109,7 @@ function remove_label!(s::System, hname::AbstractString, label::HLabel)
     if !_contains!(lh, label)
         error("label $(label) not found. ")
     end
-    @assert _remove_label!(lh, label)
+    _remove_label!(lh, label)
 
     return nothing
 end
@@ -120,7 +120,7 @@ function remove_relation!(s::System, hname::AbstractString; super::HLabel, sub::
     if !_has_relation(lh, super, sub)
         error("relation betewwn $(super) and $(sub) not found. ")
     end
-    @assert _remove_relation!(lh, super, sub)
+    _remove_relation!(lh, super, sub)
 
     return nothing
 end

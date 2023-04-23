@@ -29,7 +29,6 @@ using ..HierarchyLabels
 @reexport import ..HMD: deserialize, serialize
 @reexport import ..HMD:
     # system core interface
-    Atom_Label,
     AbstractBbox,
     AbstractSystem,
     AbstractSystemType,
@@ -49,11 +48,14 @@ using ..HierarchyLabels
     element_type,
     all_elements,
     element,
-    element,
+    add_element!,
+    add_elements!,
     set_element!,
     set_elements!,
     all_positions,
     position,
+    add_position!,
+    add_positions!,
     set_position!,
     set_position!,
     all_travels,
@@ -144,7 +146,7 @@ export H5system, H5traj, SerializedTopology, PackedHierarchy
 export h5system, h5traj, get_file
 
 #constants
-export Entire_System, BO_Precision, atom_mass
+export Entire_System, BO_Precision, atom_mass, Atom_Label, Atomic_Number_Precision
 
 const Entire_System = HLabel("entire_system", 1)
 const Atom_Label = ""
@@ -262,11 +264,11 @@ function element(s::System, atom_id::Integer)
     s.element[atom_id]
 end
 
-function _add_element!(s::System, atomic_number::Integer)
-    _add_element!(s, atomic_number)
+function add_element!(s::System, atomic_number::Integer)
+    push!(s.element, atomic_number)
 end
 
-function _add_elements!(s::System, atomic_numbers::AbstractVector{<:Integer})
+function add_elements!(s::System, atomic_numbers::AbstractVector{<:Integer})
     append!(s.element, atomic_numbers)
 end
 
@@ -289,7 +291,7 @@ function position(s::System, atom_id::Integer)
     s.position[atom_id]
 end
 
-function _add_position!(s::System, x::AbstractVector{<:AbstractFloat})
+function add_position!(s::System, x::AbstractVector{<:AbstractFloat})
     push!(s.position, x)
     if wrapped(s)
         error("atom addition with wrapped coordinates is not supprted. ")
@@ -299,7 +301,7 @@ function _add_position!(s::System, x::AbstractVector{<:AbstractFloat})
     return nothing
 end
 
-function _add_positions!(s::System, x::AbstractVector{<:AbstractVector{<:AbstractFloat}})
+function add_positions!(s::System, x::AbstractVector{<:AbstractVector{<:AbstractFloat}})
     append!(all_positions(s), x)
     if wrapped(s)
         error("atom addition with wrapped coordinates is not supprted. ")

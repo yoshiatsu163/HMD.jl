@@ -1,5 +1,9 @@
 const Entire_System = HLabel("entire_system", 1)
 
+function atom_label(id::Integer)
+    return HLabel(Atom_Label, id)
+end
+
 #const atom_mass = Dict{String, Float64}(
 #    elements[:H ].symbol => 1.008,
 #    elements[:C ].symbol => 12.012,
@@ -11,10 +15,10 @@ const Entire_System = HLabel("entire_system", 1)
 #    elements[:Cl].symbol => 35.453
 #)
 
-function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::AbstractString; super::HLabel)
+function add_atom!(s::AbstractSystem, x::AbstractVector{<:AbstractFloat}, elem::Integer; super::HLabel)
     atom_id = natom(s) + 1
-    DataTypes._add_position!(s, x)
-    DataTypes._add_element!(s, elem)
+    add_position!(s, x)
+    add_element!(s, elem)
     @assert add_vertex!(topology(s))
     for hname in hierarchy_names(s)
         add_label!(s, hname, atom_label(atom_id))
@@ -32,8 +36,8 @@ function add_atoms!(s::AbstractSystem, x::AbstractVector{<:AbstractVector{<:Abst
     front = natom(s) + 1
     back = natom(s) + length(x)
     atom_labels = atom_label.(front:back)
-    DataTypes._add_positions!(s, x)
-    DataTypes._add_elements!(s, elem)
+    add_positions!(s, x)
+    add_elements!(s, elem)
     @assert add_vertices!(topology(s), length(x))
     for hname in hierarchy_names(s)
         add_labels!(s, hname, atom_labels)
