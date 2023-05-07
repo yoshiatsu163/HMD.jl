@@ -11,7 +11,7 @@ using StaticArrays
 
 import Base: getindex, firstindex, lastindex, setproperty!, iterate, length, precision, close, string, show, showerror
 import Base: >, <, >=, <=, +, -, *, /, ==, position
-import Base: position, time, contains, promote_type, promote_rule, similar
+import Base: position, time, contains, promote_type, promote_rule, similar, merge!
 import Graphs: neighbors
 
 # utility
@@ -61,6 +61,7 @@ export
     wrap!,
     unwrap!,
     label2atom,
+    merge!,
 
     # system label manipulation
     hierarchy_names,

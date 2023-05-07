@@ -12,7 +12,7 @@ export id, type, ==
 export _add_label!, _add_labels!, _add_relation!, _remove_label!, _remove_relation!
 export _label2node, _contains, ∈, ∋, ∉, _has_relation ,_get_nodeid, getindex
 export _issuper, _issub, _super_id, _sub_id, _super, _sub
-export _root, _depth, _merge_hierarchy
+export _root, _depth, _merge_hierarchy!
 export PackedHierarchy, serialize, deserialize
 
 #####
@@ -298,35 +298,63 @@ function _depth(lh::LabelHierarchy)
     return depth - 1
 end
 
-function _merge_hierarchy!(addend::LabelHierarchy, augend::LabelHierarchy; augend_parent::HLabel, addend_parent::HLabel)
+function _merge_hierarchy!(augend::LabelHierarchy, addend::LabelHierarchy; augend_parent::HLabel, addend_parent::HLabel)
     # addend_parent自身とその上位ノードはマージから除外する
     exception = Tuple((_get_nodeid(addend, addend_parent), _super_id(addend, addend_parent)...))
+    # addend node id => augend node id
+    node_mapping = Dict{Int64, Int64}()
+    forward_shift = nv(_hierarchy(augend))
+    back_shift = 0
+    for id in 1:nv(_hierarchy(addend))
+        if id ∈ exception
+            back_shift += 1
+            continue
+        end
+        node_mapping[id] = id + forward_shift - back_shift
+    end
 
-    # merge graph
-    g_augend, g_addend = _hierarchy(augend), _hierarchy(addend)
-    node_id = nv(g_augend) + 1
-    add_vertices!(g_augend, nv(g_addend) - length(exception))
-    resize!(_labels(augend), nv(g_augend))
-    new_ids = Int64[]
-    for edge in edges(g_addend)
-        if src(edge) ∉ exception && dst(edge) ∉ exception
-            src_id = node_id
-            dst_id = node_id + 1
-            src_label = _get_label(addend, src(edge))
-            dst_label = _get_label(addend, dst(edge))
-            add_edge!(g_augend, src_id, dst_id)
-            _labels(augend)[src_id] = src_label
-            _labels(augend)[dst_id] = dst_label
-            push!(_labels2node(augend), src_label => src_id)
-            push!(_labels2node(augend), dst_label => dst_id)
-            push!(new_ids, src_id)
-            push!(new_ids, dst_id)
-            node_id += 2
+    # augendに既に存在するラベル数を記録. 存在しなければ1
+    counter = Dict{String, Int64}()
+    for label in _labels(augend)
+        if !haskey(counter, type(label))
+            counter[type(label)] = 0
+        end
+        counter[type(label)] += 1
+    end
+    for label in _labels(addend)
+        if !haskey(counter, type(label))
+            counter[type(label)] = 1
         end
     end
-    _add_relation!(g_augend; super=augend_parent, sub=_sub(addend, addend_parent))
 
-    return new_ids
+    # merge vertices and labels
+    g_augend, g_addend = _hierarchy(augend), _hierarchy(addend)
+    add_vertices!(g_augend, nv(g_addend) - length(exception))
+    resize!(_labels(augend), nv(g_augend))
+
+    # merge edges
+    for edge in edges(g_addend)
+        if src(edge) ∉ exception && dst(edge) ∉ exception
+            add_edge!(g_augend, node_mapping[src(edge)], node_mapping[dst(edge)])
+        end
+    end
+
+    # label
+    for (old_id, new_id) in sort(collect(pairs(node_mapping)), by=x->x[2])
+        ltype = _get_label(addend, old_id) |> type
+        counter[ltype] += 1
+        _labels(augend)[new_id] = HLabel(ltype, counter[ltype])
+        push!(_label2node(augend), HLabel(ltype, counter[ltype]) => new_id)
+    end
+
+    # connecting graphs
+    for old_label in _sub(addend, addend_parent)
+        old_id = _get_nodeid(addend, old_label)
+        new_label = _get_label(augend, node_mapping[old_id])
+        _add_relation!(augend; super=augend_parent, sub=new_label, unsafe=false)
+    end
+
+    return nothing
 end
 
 struct PackedHierarchy

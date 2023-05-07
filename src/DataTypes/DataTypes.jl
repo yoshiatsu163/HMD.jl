@@ -24,7 +24,7 @@ using ..HierarchyLabels
 
 @reexport import Base: *, +, -, /, <, <=, ==, >, >=, close, contains, convert, getindex,firstindex, lastindex, iterate,
     length, position, precision, promote_rule, promote_type, setproperty!, show, similar,
-    string, time, ∈, ∉
+    string, time, ∈, ∉, merge!
 
 @reexport import ..HMD: deserialize, serialize
 @reexport import ..HMD:
@@ -65,6 +65,7 @@ using ..HierarchyLabels
     wrap!,
     unwrap!,
     label2atom,
+    merge!,
 
     # system label manipulation
     hierarchy_names,
@@ -437,36 +438,30 @@ function merge!(
     wrapped(augend) != wrapped(addend) && error("augend and addend must have same wrap status. ")
 
     # add new atoms to augend
-    augend_ids = natom(augend)+1 : natom(augend)+natom(addend)
     append!(augend.position, all_positions(addend))
     append!(augend.element, all_elements(addend))
 
     merge_topology!(topology(augend), topology(addend))
 
     for hname in hierarchy_names(augend)
-        lh_augend, lh_addend = hierarchy(augend, hname, augend_parent), hierarchy(addend, hname, addend_parent)
-        appended_nodes = _merge_hierarchy!(lh_augend, lh_addend; augend_parent=augend_parent, addend_parent=addend_parent)
-
-        # hierarchyに新たに追加されたラベルのからatom_labelを検索し，ラベルのidを更新する
-        for node_id in appended_nodes
-            label = _labels(lh_augend)[node_id]
-            if is_atom(label)
-                # id(label)はaddendの原子idであるためこれをaugendの原子idに変換する
-                _labels(lh_augend)[node_id] = Label(Atom_Label, augend_ids[id(label)])
-            end
-        end
+        lh_augend = hierarchy(augend, hname)
+        lh_addend = hierarchy(addend, hname)
+        _merge_hierarchy!(
+            lh_augend, lh_addend;
+            augend_parent = augend_parent,
+            addend_parent = addend_parent
+        )
     end
 
     return nothing
 end
 
-function merge_topology!(addend::SimpleWeightedDiGraph, augend::SimpleWeightedDiGraph)
+function merge_topology!(augend::SimpleWeightedGraph, addend::SimpleWeightedGraph)
     id_mapping = nv(augend)+1 : nv(augend)+nv(addend)
     add_vertices!(augend, nv(addend))
     for edge in edges(addend)
-        addend_id1, addend_id2 = src(edge), dst(edge)
-        weight = get_weight(topo_addend, addend_id1, addend_id2)
-        add_edge!(topo_augend, id_mapping[src(edge)], id_mapping[dst(edge)], weight)
+        weight = get_weight(addend, src(edge), dst(edge))
+        @assert add_edge!(augend, id_mapping[src(edge)], id_mapping[dst(edge)], weight)
     end
 
     return nothing
