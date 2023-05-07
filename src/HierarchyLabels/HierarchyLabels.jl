@@ -231,14 +231,36 @@ function _sub_id(lh::LabelHierarchy, label::HLabel)
     return inneighbors(_hierarchy(lh), id)
 end
 
-function _super(lh::LabelHierarchy, label::HLabel)
-    super_ids = _super_id(lh, label)
-    return view(_labels(lh), super_ids)
+function _super(lh::LabelHierarchy, label::HLabel; recurse::Bool=false)
+    if recurse
+        result = HLabel[]
+        buffer = [label]
+        while isempty(buffer)
+            current = popfirst!(buffer)
+            pushfirst!(result, current)
+            prepend!(buffer, _super(lh, current))
+        end
+        return result
+    else
+        super_ids = _super_id(lh, label)
+        return view(_labels(lh), super_ids)
+    end
 end
 
-function _sub(lh::LabelHierarchy, label::HLabel)
-    sub_ids = _sub_id(lh, label)
-    return view(_labels(lh), sub_ids)
+function _sub(lh::LabelHierarchy, label::HLabel; recurse::Bool=false)
+    if recurse
+        result = HLabel[]
+        buffer = [label]
+        while isempty(buffer)
+            current = popfirst!(buffer)
+            pushfirst!(result, current)
+            prepend!(buffer, _sub(lh, current))
+        end
+        return result
+    else
+        sub_ids = _sub_id(lh, label)
+        return view(_labels(lh), sub_ids)
+    end
 end
 
 function _issuper(lh::LabelHierarchy, lhs::HLabel, rhs::HLabel)
@@ -313,7 +335,8 @@ function _merge_hierarchy!(augend::LabelHierarchy, addend::LabelHierarchy; augen
         node_mapping[id] = id + forward_shift - back_shift
     end
 
-    # augendに既に存在するラベル数を記録. 存在しなければ1
+    # augendに既に存在するラベル数を記録
+    # augendになくaddendにあるラベルのcounterは0
     counter = Dict{String, Int64}()
     for label in _labels(augend)
         if !haskey(counter, type(label))
@@ -323,7 +346,7 @@ function _merge_hierarchy!(augend::LabelHierarchy, addend::LabelHierarchy; augen
     end
     for label in _labels(addend)
         if !haskey(counter, type(label))
-            counter[type(label)] = 1
+            counter[type(label)] = 0
         end
     end
 
