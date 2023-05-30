@@ -2,18 +2,18 @@ module HierarchyLabels
 
 using Graphs
 using MLStyle
-import Base: getindex, ==, ∈, ∋, ∉, show
+using Reexport
 
-import ..HMD: serialize, deserialize
+@reexport import Base: getindex, ==, ∈, ∋, ∉, show
+@reexport import ..HMD: serialize, deserialize
 
-export HLabel, H_Label, LabelHierarchy, _labels
+export HLabel, id, type
 export LabelResult, Label_Missing, Label_Occupied, Label_Duplication, Relation_Missing, Relation_Occupied, Success
-export id, type, ==
-export _add_label!, _add_labels!, _add_relation!, _remove_label!, _remove_relation!
+export  LabelHierarchy, _labels, _add_label!, _add_labels!, _add_relation!, _remove_label!, _remove_relation!
 export _label2node, _contains, ∈, ∋, ∉, _has_relation ,_get_nodeid, getindex
 export _issuper, _issub, _super_id, _sub_id, _super, _sub
 export _root, _depth, _merge_hierarchy!
-export PackedHierarchy, serialize, deserialize
+export PackedHierarchy
 
 #####
 ##### HLabel definition
@@ -63,6 +63,19 @@ function Base.print_to_string(label::HLabel)
     return "HLabel(\"$t\", $i)"
 end
 
+#####
+##### LabelHiraraichy definition
+#####
+
+"""
+
+    LabelHierarchy
+
+This type signifies a hierarchical structure of labels. This hierarchy is depicted through a
+directed graph, with labels being maintained in a vector. The node id of the graph corresponds
+to the index of the vector. The LabelHierarchy type includes a dictionary feature for
+transforming a label into its corresponding node id.
+"""
 Base.@kwdef mutable struct LabelHierarchy
     g::DiGraph{Int64} = DiGraph{Int64}()
     labels::Vector{HLabel} = Vector{HLabel}()
@@ -93,6 +106,12 @@ function _labels(lh::LabelHierarchy)
     return lh.labels
 end
 
+"""
+
+    _get_nodeid(lh, label)
+
+Return the node id of the label in the LabelHierarchy.
+"""
 function _get_nodeid(lh::LabelHierarchy, label::HLabel)
     if length(_hierarchy(lh)) == 0
         error("There is no label in LabelHierarchy. ")
@@ -163,22 +182,24 @@ end
 
 function _remove_label!(lh::LabelHierarchy, label::HLabel)
     if !_contains(lh, label)
-        error("LabelHierarchy does not contain $label. ")
+        #error("LabelHierarchy does not contain $label. ")
+        return Label_Missing
     end
     g, id = _hierarchy(lh), _get_nodeid(lh, label)
 
     @assert rem_vertex!(g, id)
-    # when removing a vertex, the vertex id of the last vertex id is changed to keep vertex ids consecutive.
+    # 消去したnode idがiのとき，node idの末尾(==nv(g))がiに変化する
     end_label = pop!(_labels(lh))
     delete!(_label2node(lh), label)
     _set_label!(lh, end_label, id)
 
-    return nothing
+    return Success
 end
 
 function _remove_relation!(lh::LabelHierarchy, label1::HLabel, label2::HLabel)
     if !_contains(lh, label1) || !_contains(lh, label2)
-        error("LabelHierarchy does not contain $label1 or $label2. ")
+        #error("LabelHierarchy does not contain $label1 or $label2. ")
+        return Relation_Missing
     end
 
     g = _hierarchy(lh)
@@ -187,7 +208,7 @@ function _remove_relation!(lh::LabelHierarchy, label1::HLabel, label2::HLabel)
     @assert has_edge(g, n2, n1)
     @assert rem_edge!(g, n1, n2) || rem_edge!(g, n2, n1)
 
-    return nothing
+    return Success
 end
 
 function _contains(lh::LabelHierarchy, label::HLabel)
@@ -272,11 +293,8 @@ function _issub(lh::LabelHierarchy, lhs::HLabel, rhs::HLabel)
 end
 
 function ==(lhs::LabelHierarchy, rhs::LabelHierarchy)
-    if _label2node(lhs) != _label2node(rhs)
-        return false
-    end
-
     if Set(_labels(lhs)) != Set(_labels(rhs))
+        println("labels")
         return false
     end
 
@@ -285,6 +303,9 @@ function ==(lhs::LabelHierarchy, rhs::LabelHierarchy)
         lhs_label = _get_label(lhs, lhs_id)
         super_labels = _super(lhs, lhs_label) |> Set
         sub_labels = _sub(lhs, lhs_label) |> Set
+        if lhs_label ∉ rhs
+            return false
+        end
         rhs_label = _get_label(rhs, _get_nodeid(rhs, lhs_label))
         if super_labels != Set(_super(rhs, rhs_label)) || sub_labels != Set(_sub(rhs, rhs_label))
             return false

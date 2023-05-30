@@ -8,8 +8,8 @@ function test()
     handmade = begin
         lh = LabelHierarchy()
         @assert add_vertex!(_hierarchy(lh)); push!(lh.labels, l1); push!(lh.label2node, l1 => 1)
-        @assert add_vertex!(_hierarchy(lh)); push!(lh.labels, l2); push!(lh.label2node, l1 => 2)
-        @assert add_vertex!(_hierarchy(lh)); push!(lh.labels, l3); push!(lh.label2node, l1 => 3)
+        @assert add_vertex!(_hierarchy(lh)); push!(lh.labels, l2); push!(lh.label2node, l2 => 2)
+        @assert add_vertex!(_hierarchy(lh)); push!(lh.labels, l3); push!(lh.label2node, l3 => 3)
         add_edge!(_hierarchy(lh), 2, 1)
         add_edge!(_hierarchy(lh), 3, 2)
         lh
@@ -27,15 +27,22 @@ function test()
     end
     addrel2 = begin
         lh = LabelHierarchy()
-        _add_label!(lh, l1)
-        _add_label!(lh, l2)
-        _add_label!(lh, l3)
-        _add_relation!(lh; super = l2, sub = l3)
-        _add_relation!(lh; super = l1, sub = l2)
+        @test _add_label!(lh, l2) == Success
+        @test _add_label!(lh, l1) == Success
+        @test _add_label!(lh, l3) == Success
+        @test _add_relation!(lh; super = l2, sub = l3) == Success
+        @test _add_relation!(lh; super = l1, sub = l2) == Success
+        lh
+    end
+    multiadd = begin
+        lh = LabelHierarchy()
+        @test _add_labels!(lh, [l1, l2, l3]) == Success
+        @test _add_relation!(lh; super = l2, sub = l3) == Success
+        @test _add_relation!(lh; super = l1, sub = l2) == Success
         lh
     end
 
-    @test _hierarchy(addrel1) == _hierarchy(addrel2) == _hierarchy(handmade)
+    @test addrel1 == addrel2 == handmade == multiadd
     @test _contains(addrel1, l1)
     @test !_contains(addrel1, noexist)
     @test _get_nodeid(addrel1, l1) == 1 && _get_nodeid(addrel1, l2) == 2 && _get_nodeid(addrel1, l3) == 3
@@ -53,6 +60,7 @@ function test()
     @test _add_relation!(addrel1; super=noexist, sub=l3) == Label_Missing
     @test _add_relation!(addrel1; super=l3, sub=l3)      == Label_Duplication
     @test _add_relation!(addrel1; super=l2, sub=l3)      == Relation_Occupied
+    @test _add_relation!(addrel1; super=l2, sub=l3)      == Relation_Occupied
 
     addrel1 = begin
         lh = LabelHierarchy()
@@ -65,12 +73,13 @@ function test()
     end
     lh = deepcopy(addrel1)
     @test lh == addrel1
-    @test_throws ErrorException _remove_relation!(lh, noexist, l3)
-    @test_throws ErrorException _remove_relation!(lh, l2, noexist)
+    @test _remove_relation!(lh, noexist, l3) == Relation_Missing
+    @test _remove_relation!(lh, l2, noexist) == Relation_Missing
     @test lh == addrel1
-    @test _remove_label!(lh, l1) == nothing
-    @test _remove_relation!(lh, l2, l3) == nothing
-    @test_throws ErrorException _remove_label!(lh, l1)
+    @test _remove_label!(lh, l1) == Label_Missing
+    @test lh == addrel1
+    @test _remove_label!(lh, l1) == Success
+    @test _remove_relation!(lh, l2, l3) == Success
 end
 
 end #test

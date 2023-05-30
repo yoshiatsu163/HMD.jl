@@ -1,9 +1,5 @@
 const Entire_System = HLabel("entire_system", 1)
 
-function atom_label(id::Integer)
-    return HLabel(Atom_Label, id)
-end
-
 #const atom_mass = Dict{String, Float64}(
 #    elements[:H ].symbol => 1.008,
 #    elements[:C ].symbol => 12.012,

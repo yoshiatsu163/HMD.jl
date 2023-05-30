@@ -13,6 +13,7 @@ import Base: getindex, firstindex, lastindex, setproperty!, iterate, length, pre
 import Base: >, <, >=, <=, +, -, *, /, ==, position
 import Base: position, time, contains, promote_type, promote_rule, similar, merge!
 import Graphs: neighbors
+@reexport import Base: sort
 
 # utility
 export oblique_coord, atom_label
@@ -40,6 +41,7 @@ export
     time,
     set_time!,
     topology,
+    bond_order,
     box,
     set_box!,
     all_elements,
