@@ -135,6 +135,7 @@ export
     add_bond!,
     add_bonds!,
     bond_order,
+    set_bondorder!,
     valence,
     neighbors,
     l2a,

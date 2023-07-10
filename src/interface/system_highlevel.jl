@@ -77,6 +77,7 @@ function add_bond!(s::AbstractSystem, label1::HLabel, label2::HLabel; bond_order
     return nothing
 end
 
+# core apiに移管
 function bond_order(s::AbstractSystem, atom_id1::Integer, atom_id2::Integer)
     topo = topology(s)
     if !has_edge(topo, atom_id1, atom_id2)
@@ -86,6 +87,7 @@ function bond_order(s::AbstractSystem, atom_id1::Integer, atom_id2::Integer)
     return get_weight(topo, atom_id1, atom_id2)
 end
 
+# core apiに移管
 function bond_order(s::AbstractSystem, label1::HLabel, label2::HLabel)
     if !is_atom(label1) || !is_atom(label2)
         error("label is not for atom. ")
@@ -94,6 +96,15 @@ function bond_order(s::AbstractSystem, label1::HLabel, label2::HLabel)
     atom_id2 = convert(Int64, id(label2))
 
     return bond_order(s, atom_id1, atom_id2)
+end
+
+# core apiに移管
+# topologyがAbstractGraphに従う限り現在のcore apiが動けばhighlevel apiも動くので移管しなくてもよい？
+function set_bondorder!(s::AbstractSystem, atom_id1::Integer, atom_id2::Integer, bo::Rational{<:Integer})
+    topo = topology(s)
+    @assert rem_edge!(topo, atom_id1, atom_id2)
+    @assert add_edge!(topo, atom_id1, atom_id2, bo)
+    return nothing
 end
 
 function valence(s::AbstractSystem, atom_id::Integer)

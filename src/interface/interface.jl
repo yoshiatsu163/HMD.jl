@@ -14,6 +14,7 @@ end
 
 _NI(m) = throw(NotImplementedError(m))
 
+# AbstractSystemのトポロジーは必ずAbstractGraphのsubtype
 abstract type AbstractSystemType end
 abstract type AbstractSystem{D, F<:AbstractFloat, SysType<:AbstractSystemType} end
 abstract type AbstractTrajectory{D, F<:AbstractFloat, SysType<:AbstractSystemType} end
