@@ -55,7 +55,7 @@ wrap!(s::AbstractSystem) = _NI("wrap!")
 unwrap!(s::AbstractSystem) = _NI("unwrap!")
 label2atom(s::AbstractSystem, hname::AbstractString, label::HLabel) = _NI("label2atom")
 merge!(augend::AbstractSystem, addend::AbstractSystem;
-    augend_parent::HLabel, addend_parent::HLabel) = NI("merge!")
+    augend_parent::HLabel, addend_parent::HLabel, unsafe::Bool=false) = NI("merge!")
 
 # system label manipulation
 hierarchy_names(s::AbstractSystem) = _NI("hierarchy_names")
@@ -95,6 +95,7 @@ all_timesteps(traj::AbstractTrajectory) = _NI("all_timesteps")
 get_timestep(traj::AbstractTrajectory, index::Integer) = _NI("get_timestep")
 length(traj::AbstractTrajectory) = _NI("length")
 add!(traj::AbstractTrajectory, s::AbstractSystem, timestep::Integer; reaction=false) = _NI("add!")
+add!(traj::AbstractTrajectory, s::AbstractTrajectory) = _NI("add!")
 import_dynamic!(reader::AbstractSystem, traj::AbstractTrajectory, index::Integer) = _NI("import_dynamic!")
 import_static!(reader::AbstractSystem, traj::AbstractTrajectory, index::Integer) = _NI("import_static!")
 latest_reaction(traj::AbstractTrajectory, index::Integer) = _NI("latest_reaction")

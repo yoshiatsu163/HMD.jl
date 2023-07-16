@@ -432,13 +432,14 @@ include("test.jl")
 
 function merge!(
     augend::System{D, F, SysType1}, addend::System{D, F, SysType2};
-    augend_parent::HLabel, addend_parent::HLabel
+    augend_parent::HLabel, addend_parent::HLabel, unsafe::Bool=false
 ) where {D, F<:AbstractFloat, SysType1<:AbstractSystemType, SysType2<:AbstractSystemType}
     # wrap check
     wrapped(augend) != wrapped(addend) && error("augend and addend must have same wrap status. ")
 
     # add new atoms to augend
     append!(augend.position, all_positions(addend))
+    append!(augend.travel, all_travels(addend))
     append!(augend.element, all_elements(addend))
 
     merge_topology!(topology(augend), topology(addend))
@@ -449,7 +450,8 @@ function merge!(
         _merge_hierarchy!(
             lh_augend, lh_addend;
             augend_parent = augend_parent,
-            addend_parent = addend_parent
+            addend_parent = addend_parent,
+            unsafe = unsafe
         )
     end
 

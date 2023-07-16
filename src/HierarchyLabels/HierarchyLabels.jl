@@ -341,7 +341,7 @@ function _depth(lh::LabelHierarchy)
     return depth - 1
 end
 
-function _merge_hierarchy!(augend::LabelHierarchy, addend::LabelHierarchy; augend_parent::HLabel, addend_parent::HLabel)
+function _merge_hierarchy!(augend::LabelHierarchy, addend::LabelHierarchy; augend_parent::HLabel, addend_parent::HLabel, unsafe::Bool=false)
     # addend_parent自身とその上位ノードはマージから除外する
     exception = Tuple((_get_nodeid(addend, addend_parent), _super_id(addend, addend_parent)...))
     # addend node id => augend node id
@@ -395,7 +395,7 @@ function _merge_hierarchy!(augend::LabelHierarchy, addend::LabelHierarchy; augen
     for old_label in _sub(addend, addend_parent)
         old_id = _get_nodeid(addend, old_label)
         new_label = _get_label(augend, node_mapping[old_id])
-        _add_relation!(augend; super=augend_parent, sub=new_label, unsafe=false)
+        _add_relation!(augend; super=augend_parent, sub=new_label, unsafe=unsafe)
     end
 
     return nothing

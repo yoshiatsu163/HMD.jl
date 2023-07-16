@@ -74,6 +74,27 @@ function add!(traj::Trajectory{D, F, SysType}, s::System{D, F, SysType}, timeste
     return nothing
 end
 
+function add!(
+    traj::Trajectory{D, F, SysType}, addend::Trajectory{D, F, SysType}
+) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    if topology(traj.systems[1]) != topology(addend.systems[1])
+        error("topology of traj and addend are not compatible. ")
+    end
+
+    endstep = all_timesteps(traj)[end]
+    nsnap = length(addend.systems)
+    append!(traj.systems, view(addend.systems, 2:nsnap))
+    append!(traj.is_reaction, addend.is_reaction[2:end])
+    append!(traj.timesteps, addend.timesteps[2:end] .+ endstep)
+
+    endtime = time(traj.systems[end])
+    for i in nsnap+1:length(traj)
+        traj.systems[i].time += endtime
+    end
+
+    return nothing
+end
+
 function import_dynamic!(reader::System{D, F, S1}, traj::Trajectory{D, F, S2}, index::Integer) where {D, F<:AbstractFloat, S1<:AbstractSystemType, S2<:AbstractSystemType}
     s = get_system(traj, index)
     set_time!(reader, time(s))
