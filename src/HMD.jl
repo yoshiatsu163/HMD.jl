@@ -85,6 +85,11 @@ export
     super,
     sub,
 
+    # system property interface
+    prop_names,
+    prop,
+    add_prop!,
+    set_prop!,
     # system io interface
     AbstractFileFormat,
     close,

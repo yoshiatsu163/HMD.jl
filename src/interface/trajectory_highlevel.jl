@@ -23,6 +23,7 @@ function getindex(traj::AbstractTrajectory{D, F, SysType}, index::Integer) where
     set_box!(replica, deepcopy(box(current)))
     replica.position = all_positions(current) |> deepcopy
     replica.travel = deepcopy(current.travel)
+    replica.props = deepcopy(current.props)
 
     # others
     replica.wrapped = current.wrapped

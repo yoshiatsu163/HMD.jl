@@ -80,7 +80,7 @@ end
 
 function hmdsave(file_handler::H5system, s::System{D, F, SysType}; compress=false) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     if compress
-        println("warning: compression is not supported yet.")
+        @warn "warning: compression is not supported yet. ignoring..."
     end
 
     file = get_file(file_handler)
@@ -105,11 +105,13 @@ function hmdsave(file_handler::H5system, s::System{D, F, SysType}; compress=fals
     #file["element/bounds"] = bounds
     file["element"] = all_elements(s)
 
+    # topology
     stopo = serialize(topology(s))
     for fname in fieldnames(SerializedTopology)
         file["topology/$(fname)"] = getfield(stopo, fname)
     end
 
+    # label hierarchy
     file["hierarchy_names"] = hierarchy_names(s)
     for hname in hierarchy_names(s)
         ser_hierarchy = serialize(hierarchy(s, hname))
@@ -117,8 +119,12 @@ function hmdsave(file_handler::H5system, s::System{D, F, SysType}; compress=fals
             file["hierarchy/$hname/$(fname)"] = getfield(ser_hierarchy, fname)
         end
     end
-    ##temporary
-    #file["props"] = s.props
+
+    # properties
+    file["property_names"] = prop_names(s)
+    for pname in prop_names(s)
+        file["props/$pname"] = get_prop(s, pname)
+    end
 
     return nothing
 end
@@ -145,6 +151,10 @@ function import_dynamic!(s::System{D, F, SysType}, system_file::H5system) where 
     s.position = deserialize(D, read(file, "position"))
     s.travel = deserialize(D, read(file, "travel"))
     s.wrapped = read(file, "wrapped")
+
+    for pname in file["property_names"]
+        set_prop!(s, pname, read(file, "props/$pname"))
+    end
 
     return nothing
 end

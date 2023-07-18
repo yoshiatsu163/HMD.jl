@@ -80,8 +80,12 @@ issub(s::AbstractSystem, hname::AbstractString, label1::HLabel, label2::HLabel) 
 super(s::AbstractSystem, hname::AbstractString, label::HLabel; recurse::Bool=false) = _NI("super")
 sub(s::AbstractSystem, hname::AbstractString, label::HLabel; recurse::Bool=false) = _NI("sub")
 
-# property interface
-
+# system property interface
+prop_names(s::AbstractSystem) = NI("prop_names")
+prop(s::AbstractSystem, pname::AbstractString) = NI("prop")
+add_prop!(s::AbstractSystem, pname::AbstractString, p::AbstractArray) = NI("add_prop!")
+set_prop!(s::AbstractSystem, pname::AbstractString, p::AbstractArray) = NI("set_prop!")
+set_prop!(s::AbstractSystem, pname::AbstractString, p::Union{Float64, Float32}) = NI("set_prop!")
 
 # system_io interface
 abstract type AbstractFileFormat end
@@ -107,6 +111,7 @@ system_type(traj::AbstractTrajectory) = _NI("system_type")
 wrapped(traj::AbstractTrajectory) = _NI("wrapped")
 wrap!(traj::AbstractTrajectory) = _NI("wrap!")
 unwrap!(traj::AbstractTrajectory) = _NI("unwrap!")
+prop(s::AbstractSystem, index::Integer, pname::AbstractString) = NI("prop")
 
 # trajectory io interface
 add_snapshot!(file_handler::AbstractFileFormat, s::AbstractSystem, step::Int64; reaction::Bool=false, unsafe::Bool=false) = _NI("add_snapshot!")

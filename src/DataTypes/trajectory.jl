@@ -43,6 +43,10 @@ function get_timestep(traj::Trajectory{D, F, SysType}, index::Integer) where {D,
     return all_timesteps(traj)[index]
 end
 
+function prop(traj::Trajectory, index::Integer, pname::AbstractString)
+    return prop(get_system(traj, index), pname)
+end
+
 function Base.length(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
     return length(traj.systems)
 end
@@ -67,7 +71,7 @@ function add!(traj::Trajectory{D, F, SysType}, s::System{D, F, SysType}, timeste
         replica.position = all_positions(s)
         replica.travel = s.travel
         replica.wrapped = s.wrapped
-        #replica.props = s.props
+        replica.props = s.props
         push!(traj.systems, replica)
     end
 
@@ -102,7 +106,7 @@ function import_dynamic!(reader::System{D, F, S1}, traj::Trajectory{D, F, S2}, i
     reader.position = all_positions(s)
     reader.travel = s.travel
     reader.wrapped = s.wrapped
-    #reader.props = s.props
+    reader.props = s.props
 
     return nothing
 end

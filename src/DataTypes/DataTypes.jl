@@ -88,6 +88,11 @@ using ..HierarchyLabels
     super,
     sub,
 
+    # system property interface
+    prop_names,
+    prop,
+    set_prop!,
+
     # system io interface
     AbstractFileFormat,
     close,
@@ -177,7 +182,7 @@ mutable struct System{D, F<:AbstractFloat, SysType<:AbstractSystemType} <: Abstr
     element::Vector{Atomic_Number_Precision}
 
     hierarchy::Dict{String, LabelHierarchy}
-    props::Dict{String, Dict{HLabel, Any}}
+    props::Dict{String, Array}
 end
 
 function System{D, F, SysType}() where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
@@ -190,7 +195,7 @@ function System{D, F, SysType}() where {D, F<:AbstractFloat, SysType<:AbstractSy
         false,
         Atomic_Number_Precision[],
         Dict{String, LabelHierarchy}(),
-        Dict{String, Dict{HLabel, Any}}()
+        Dict{String, Array}()
     )
 end
 
