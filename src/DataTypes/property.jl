@@ -21,3 +21,19 @@ end
 function set_prop!(s::System, pname::AbstractString, p::Union{Float64, Float32})
     s.props[pname] = [p]
 end
+
+function set_velocity!()
+
+end
+
+function set_force!()
+
+end
+
+function all_velocities()
+
+end
+
+function velocity()
+
+end
