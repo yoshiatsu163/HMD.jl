@@ -24,7 +24,7 @@ abstract type AbstractBbox{D, F<:AbstractFloat} end
 dimension(s::AbstractSystem) = _NI("dimension")
 precision(s::AbstractSystem) = _NI("precision")
 system_type(s::AbstractSystem) = _NI("system_type")
-similar(s::AbstractSystem) = _NI("similar")
+similar(s::AbstractSystem; reserve_dynamic::Bool=false, reserve_static::Bool=false) = _NI("similar")
 show(io::IO, ::MIME"text/plain", s::AbstractSystem{D, F, SysType}) where {D, F<:AbstractFloat, SysType <: AbstractSystemType} = _NI("show")
 natom(s::AbstractSystem) = _NI("natom")
 nbond(s::AbstractSystem) = _NI("nbond")
@@ -93,6 +93,7 @@ close(file_handler::AbstractFileFormat) = _NI("close")
 # TODO Abstract File Formatを元にsystemとtrajectoryの構成をつくる
 
 # trajectory interface
+empty_trajectory(s::AbstractSystem) = _NI("empty_trajectory")
 is_reaction(s::AbstractTrajectory, index::Integer) = _NI("is_reaction")
 get_system(s::AbstractTrajectory, index::Integer) = _NI("get_system")
 all_timesteps(traj::AbstractTrajectory) = _NI("all_timesteps")

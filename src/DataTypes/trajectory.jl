@@ -24,7 +24,11 @@ Base.@kwdef mutable struct Trajectory{D, F<:AbstractFloat, SysType<:AbstractSyst
 end
 
 function Trajectory(s::System{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
-    return Trajectory{D, F, SysType}([s], [true], [1])
+    return Trajectory{D, F, SysType}([s], [1], [1])
+end
+
+function empty_trajectory(s::System{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
+    return Trajectory{D, F, SysType}()
 end
 
 function is_reaction(traj::Trajectory{D, F, SysType}, index::Integer) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}
@@ -55,6 +59,11 @@ function add!(traj::Trajectory{D, F, SysType}, s::System{D, F, SysType}, timeste
     @assert length(traj.systems) == length(traj.timesteps)
     if length(traj) > 0
         @assert traj.is_reaction[end] <= length(traj)
+    else
+        push!(traj.systems, s)
+        push!(traj.is_reaction, 1)
+        push!(traj.timesteps, timestep)
+        return nothing
     end
 
     push!(traj.timesteps, timestep)
@@ -147,7 +156,7 @@ function similar_system(traj::Trajectory{D, F, SysType}; reserve_dynamic=false, 
         import_static!(s, traj, 1)
     end
 
-    return s
+    return deepcopy(s)
 end
 
 function dimension(traj::Trajectory{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}

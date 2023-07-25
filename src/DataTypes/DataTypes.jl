@@ -98,6 +98,7 @@ using ..HierarchyLabels
     close,
 
     # trajectory interface
+    empty_trajectory,
     get_system,
     all_timesteps,
     get_timestep,
@@ -215,8 +216,22 @@ function system_type(s::System{D, F, SysType}) where {D, F<:AbstractFloat, SysTy
     return SysType
 end
 
-function Base.similar(s::System{D, F, SysType}) where {D, F, SysType}
-    return System{D, F, SysType}()
+function Base.similar(s::System{D, F, SysType}; reserve_dynamic::Bool=false, reserve_static::Bool=false) where {D, F, SysType}
+    sim = System{D, F, SysType}()
+    if reserve_dynamic
+        set_time!(sim, time(s))
+        set_box!(sim, box(s))
+        sim.position = s.position
+        sim.travel = s.travel
+        sim.wrapped = s.wrapped
+        sim.props = s.props
+    end
+    if reserve_static
+        sim.topology = s.topology
+        sim.hierarchy = s.hierarchy
+        sim.element = s.element
+    end
+    return deepcopy(sim)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", s::System{D, F, SysType}) where {D, F<:AbstractFloat, SysType<:AbstractSystemType}

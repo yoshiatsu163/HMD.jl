@@ -95,6 +95,7 @@ export
     close,
 
     # trajectory interface
+    empty_trajectory,
     get_system,
     all_timesteps,
     get_timestep,
